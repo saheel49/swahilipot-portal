@@ -1,5 +1,6 @@
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count
+from django.db.models import Count, Sum as db_Sum
+from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
 from accounts.models import User
@@ -9,34 +10,24 @@ from core.permissions import capability_required
 from core.reports import excel_response, pdf_response
 from events.models import Event
 from suggestions.models import Suggestion
-from tasks.models import Task
 from tasks.access import visible_tasks_for
+import json as _json
 
 
 @login_required
 def home(request):
     today = timezone.localdate()
     user_records = Attendance.objects.filter(user=request.user)[:5]
-
-    # Tasks scoped to this user's role
     visible_tasks = visible_tasks_for(request.user)
-
-    # Calendar reminders: upcoming tasks + events for this user
-    from tasks.models import Task as _Task
-    from events.models import Event as _Event
-    import json as _json
-    from django.utils.timezone import make_aware
-    from datetime import datetime as _dt
 
     upcoming_tasks = visible_tasks.exclude(
         status__in=["completed"]
     ).order_by("due_date")[:30]
 
-    upcoming_events = _Event.objects.filter(
+    upcoming_events = Event.objects.filter(
         start_date__date__gte=today
     ).order_by("start_date")[:20]
 
-    # Build calendar items list for JS (ISO date + title + type + priority)
     cal_items = []
     for t in upcoming_tasks:
         cal_items.append({
@@ -55,12 +46,18 @@ def home(request):
             "url": f"/events/{e.pk}/",
         })
 
+    # Event scans: sum form_response_count across all active (not yet ended) events
+    event_scans_today = (
+        Event.objects
+        .filter(end_date__gte=timezone.now())
+        .aggregate(total=db_Sum("form_response_count"))["total"] or 0
+    )
+
     context = {
         "announcements": Announcement.objects.all()[:5],
         "my_tasks": visible_tasks[:5],
         "my_attendance": user_records,
-        # Only show events that haven't ended yet on the dashboard
-        "events": _Event.objects.filter(end_date__gte=timezone.now()).order_by("start_date")[:5],
+        "events": Event.objects.filter(end_date__gte=timezone.now()).order_by("start_date")[:5],
         "total_staff": User.objects.filter(is_active=True).count(),
         "attendance_today": Attendance.objects.filter(check_in_time__date=today).count(),
         "checked_in_now": Attendance.objects.filter(status=Attendance.Status.CHECKED_IN).count(),
@@ -68,26 +65,81 @@ def home(request):
             check_in_time__date=today,
             arrival_status=Attendance.ArrivalStatus.LATE,
         ).count(),
-        # Users who have NOT checked in at all today (active users only)
         "not_checked_in": User.objects.filter(is_active=True).exclude(
             attendance_records__check_in_time__date=today
         ).count(),
-        # Task analytics only over tasks the user can see (role-scoped)
+        "event_scans_today": event_scans_today,
         "task_status": list(visible_tasks.values("status").annotate(count=Count("id"))),
         "task_status_total": max(visible_tasks.values("status").annotate(count=Count("id")).aggregate(t=Count("id"))["t"] or 1, 1),
         "suggestion_categories": list(Suggestion.objects.values("category").annotate(count=Count("id"))),
         "suggestion_categories_total": max(Suggestion.objects.count() or 1, 1),
         "event_stats": list(
-            _Event.objects.annotate(
+            Event.objects.annotate(
                 reg_count=Count("registrations"),
                 att_count=Count("attendance")
             ).values("title", "reg_count", "att_count")[:8]
         ),
-        # Reminders calendar
         "cal_items_json": _json.dumps(cal_items),
         "today_iso": today.isoformat(),
     }
     return render(request, "dashboard/home.html", context)
+
+
+def live_stats(request):
+    """Lightweight JSON endpoint polled by the dashboard every 15 s.
+    No @login_required so it works from any tab including unauthenticated scans.
+    """
+    today = timezone.localdate()
+    # Sum QR scans across ALL non-past events — removes date-filter bugs where
+    # timezone mismatches or past end_dates cause the count to show 0.
+    event_scans_today = (
+        Event.objects
+        .filter(end_date__gte=timezone.now())
+        .aggregate(total=db_Sum("form_response_count"))["total"] or 0
+    )
+    return JsonResponse({
+        "checked_in_now": Attendance.objects.filter(status=Attendance.Status.CHECKED_IN).count(),
+        "attendance_today": Attendance.objects.filter(check_in_time__date=today).count(),
+        "not_checked_in": User.objects.filter(is_active=True).exclude(
+            attendance_records__check_in_time__date=today
+        ).count(),
+        "late_arrivals": Attendance.objects.filter(
+            check_in_time__date=today,
+            arrival_status=Attendance.ArrivalStatus.LATE,
+        ).count(),
+        "event_scans_today": event_scans_today,
+    })
+
+
+@login_required
+def event_scan_debug(request):
+    """
+    Debug endpoint — open in browser to verify QR scan counts are being saved.
+    Visit: /dashboard/event-scan-debug/
+    Shows every event's form_response_count, google_form_url, and QR status.
+    """
+    events = Event.objects.all().order_by("-start_date").values(
+        "pk", "title", "form_response_count", "google_form_url",
+        "start_date", "end_date", "capacity",
+    )
+    data = []
+    for e in events:
+        data.append({
+            "id": e["pk"],
+            "title": e["title"],
+            "scans": e["form_response_count"],
+            "capacity": e["capacity"],
+            "google_form_url": e["google_form_url"] or "NOT SET",
+            "start_date": str(e["start_date"]),
+            "end_date": str(e["end_date"]),
+            "is_past": e["end_date"] < timezone.now(),
+        })
+    total_scans = sum(d["scans"] for d in data)
+    return JsonResponse({
+        "total_scans_all_events": total_scans,
+        "now": str(timezone.now()),
+        "events": data,
+    }, json_dumps_params={"indent": 2})
 
 
 def filtered_dates(request, qs, field):
@@ -108,15 +160,11 @@ def reports(request):
 @login_required
 def reminders(request):
     """Full-page calendar + reminders view for all users."""
-    import json as _json
-    from tasks.models import Task as _Task
-    from events.models import Event as _Event
-
     today = timezone.localdate()
     visible_tasks = visible_tasks_for(request.user)
 
     upcoming_tasks = visible_tasks.exclude(status="completed").order_by("due_date")[:50]
-    upcoming_events = _Event.objects.filter(start_date__date__gte=today).order_by("start_date")[:30]
+    upcoming_events = Event.objects.filter(start_date__date__gte=today).order_by("start_date")[:30]
 
     cal_items = []
     for t in upcoming_tasks:

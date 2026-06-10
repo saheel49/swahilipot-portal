@@ -1,5 +1,6 @@
 import uuid
 from io import BytesIO
+import urllib.parse
 try:
     import qrcode
 except ImportError:
@@ -7,50 +8,45 @@ except ImportError:
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.db import models
-from django.urls import reverse
 from django.utils import timezone
 
 
-# ── Google Form URL for event registration ────────────────────────────────────
-GOOGLE_FORM_BASE_URL = (
-    "https://docs.google.com/forms/d/e/"
-    "1FAIpQLSedV4ca8NSItkayTczjXGSQDETcUDpt4u936FxE9ul1rsVl4g"
-    "/viewform"
-)
-
-# ── Pre-fill field IDs ────────────────────────────────────────────────────────
-# To get these values:
-#   1. Open your Google Form → ⋮ menu → "Get pre-filled link"
-#   2. Fill in something for each field you want to pre-fill → "Get link"
-#   3. Inspect the URL — each field appears as  ?entry.XXXXXXXXX=value
-#   4. Copy the entry.XXXXXXXXX key for each field below.
-#
-# Example:  GOOGLE_FORM_EVENT_ID_FIELD = "entry.123456789"
-#
-# GOOGLE_FORM_EVENT_ID_FIELD   — the "Event ID" field in your form (required for tracking)
-# GOOGLE_FORM_EVENT_NAME_FIELD — the "Event Name" field (optional, for display)
-#
-GOOGLE_FORM_EVENT_ID_FIELD   = ""   # e.g. "entry.123456789"  ← set this
-GOOGLE_FORM_EVENT_NAME_FIELD = ""   # e.g. "entry.987654321"  ← optional
+def _get_form_setting(key, default=""):
+    """Read a Google Form setting from Django settings (loaded from .env)."""
+    return getattr(settings, key, default) or default
 
 
 def build_form_url(event):
     """
-    Return the Google Form URL pre-filled with this event's ID (and optionally
-    its name).  Both QR-code scans and the direct portal "Register" button use
-    this same URL so every response is automatically tagged with the event.
+    Return the Google Form URL pre-filled with this event's title as the
+    Event ID value, so every scan is automatically tagged with the event name.
 
-    If no pre-fill fields are configured the plain base URL is returned.
+    The event TITLE is used as the pre-fill value (not the numeric PK) so
+    Google Sheets responses are human-readable without needing to look up IDs.
+
+    Config (set in .env):
+        GOOGLE_FORM_BASE_URL  — the /viewform URL of your Google Form
+        GOOGLE_FORM_EVENT_ID_FIELD  — entry.XXXXXXXXX for the Event ID question
+        GOOGLE_FORM_EVENT_NAME_FIELD — entry.YYYYYYYYY for an Event Name question (optional)
     """
-    import urllib.parse
+    base_url = _get_form_setting("GOOGLE_FORM_BASE_URL")
+    if not base_url:
+        return ""
+
+    event_id_field   = _get_form_setting("GOOGLE_FORM_EVENT_ID_FIELD")
+    event_name_field = _get_form_setting("GOOGLE_FORM_EVENT_NAME_FIELD")
+
     params = {}
-    if GOOGLE_FORM_EVENT_ID_FIELD:
-        params[GOOGLE_FORM_EVENT_ID_FIELD] = str(event.pk)
-    if GOOGLE_FORM_EVENT_NAME_FIELD:
-        params[GOOGLE_FORM_EVENT_NAME_FIELD] = event.title
+    if event_id_field:
+        # Use the numeric PK as the Event ID — matches what Apps Script sends back
+        params[event_id_field] = str(event.pk)
+    if event_name_field:
+        # Use the title for the Event Name field — human-readable in Sheets
+        params[event_name_field] = event.title
+
     if params:
-        return GOOGLE_FORM_BASE_URL + "?" + urllib.parse.urlencode(params)
-    return GOOGLE_FORM_BASE_URL
+        return base_url + "?" + urllib.parse.urlencode(params)
+    return base_url
 
 
 class Event(models.Model):
@@ -66,24 +62,16 @@ class Event(models.Model):
     # Unique ID embedded in the portal QR code — survives regeneration
     qr_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
-    # Store the Google Form URL so admins can see / override it
+    # Stored pre-filled Google Form URL for this event (updated on every save)
     google_form_url = models.URLField(
         blank=True,
-        help_text=(
-            "Auto-generated Google Form URL. "
-            "Override with a custom form URL if needed. "
-            "The QR code will point to this URL."
-        ),
+        help_text="Pre-filled Google Form URL for this event. Auto-updated when the event is saved.",
     )
 
-    # Auto-updated from Google Forms webhook — reflects actual form submissions
+    # Incremented on every QR scan (and optionally by the Apps Script webhook)
     form_response_count = models.PositiveIntegerField(
         default=0,
-        help_text=(
-            "Number of Google Form responses received for this event. "
-            "Auto-updated via the /events/<pk>/form-response/ webhook "
-            "triggered by Google Apps Script."
-        ),
+        help_text="QR scans / form responses for this event. Auto-updated.",
     )
 
     class Meta:
@@ -94,22 +82,18 @@ class Event(models.Model):
 
     @property
     def is_past(self):
-        """True once the event's end_date has elapsed."""
         return timezone.now() > self.end_date
 
     @property
     def is_upcoming(self):
-        """True if the event hasn't ended yet."""
         return timezone.now() <= self.end_date
 
     @property
     def is_full(self):
-        """True when registrations have reached or exceeded capacity."""
-        return self.registrations.count() >= self.capacity
+        return self.form_response_count >= self.capacity
 
     @property
     def registration_open(self):
-        """Registration is open only when the event is upcoming AND not full."""
         return self.is_upcoming and not self.is_full
 
     def registration_count(self):
@@ -120,41 +104,33 @@ class Event(models.Model):
 
     def get_portal_qr_url(self, request=None):
         """
-        Return the portal registration URL embedded in the QR code.
-        Uses the event's stable qr_uuid so the URL never changes even if the
-        event PK changes.  The view at /events/qr/<uuid>/ handles both
-        authenticated and unauthenticated users.
+        Absolute URL that the QR code encodes — points to the portal's own
+        /events/qr/<uuid>/ handler which increments the counter then redirects
+        to the pre-filled Google Form.
+
+        Uses request.build_absolute_uri when available (handles any domain/port),
+        otherwise falls back to settings.SITE_BASE_URL from .env.
         """
         path = f"/events/qr/{self.qr_uuid}/"
         if request:
             return request.build_absolute_uri(path)
-        base = getattr(settings, "SITE_BASE_URL", "").rstrip("/")
-        return f"{base}{path}" if base else path
+        base = getattr(settings, "SITE_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+        return f"{base}{path}"
 
     def get_registration_url(self):
-        """
-        Return the Google Form URL pre-filled with this event's ID.
-        Used by both the direct "Register" button and the QR code redirect,
-        so every form submission is automatically tagged with the event.
-        """
-        return build_form_url(self)
+        """Pre-filled Google Form URL for this event."""
+        return build_form_url(self) or _get_form_setting("GOOGLE_FORM_BASE_URL", "")
 
     def regenerate_qr(self, request=None):
         """
-        Regenerate the QR code.
-
-        The QR encodes the portal's own /events/qr/<uuid>/ endpoint.
-        - Phone camera (unauthenticated): portal redirects to the pre-filled
-          Google Form URL for this specific event.
-        - Portal user (authenticated): attendance is recorded in the DB, then
-          the same pre-filled Google Form opens so the response is also
-          captured in Google Sheets.
-
-        The UUID is stable — regenerating never breaks existing printed codes.
+        (Re)generate the QR code PNG. Called automatically on every save so
+        the QR always reflects the current SITE_BASE_URL and event UUID.
         """
         if not qrcode:
             return
         url = self.get_portal_qr_url(request)
+        if not url:
+            return
         img = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_M,
@@ -166,20 +142,29 @@ class Event(models.Model):
         qr_img = img.make_image(fill_color="#1e40af", back_color="white")
         buffer = BytesIO()
         qr_img.save(buffer, format="PNG")
-        self.qr_code.save(
-            f"event-{self.pk}-{str(self.qr_uuid)[:8]}.png",
-            ContentFile(buffer.getvalue()),
-            save=False,
-        )
+        filename = f"event-{self.pk}-{str(self.qr_uuid)[:8]}.png"
+        # Delete old file first to avoid stale media files piling up
+        if self.qr_code:
+            try:
+                self.qr_code.delete(save=False)
+            except Exception:
+                pass
+        self.qr_code.save(filename, ContentFile(buffer.getvalue()), save=False)
 
     def save(self, *args, **kwargs):
-        # Store the base form URL (without pre-fill params — those are added at runtime)
-        self.google_form_url = GOOGLE_FORM_BASE_URL
-
+        is_new = self.pk is None
         super().save(*args, **kwargs)
 
-        # Auto-generate QR code on first save only (regenerate_qr() for manual refresh)
-        if qrcode and not self.qr_code:
+        # Build the pre-filled form URL AFTER save so self.pk is always a real number
+        new_form_url = build_form_url(self)
+        if new_form_url:
+            self.google_form_url = new_form_url
+
+        needs_regen = is_new or not self.qr_code
+        if not needs_regen and new_form_url:
+            needs_regen = (self.google_form_url != new_form_url)
+
+        if qrcode and needs_regen:
             self.regenerate_qr()
             Event.objects.filter(pk=self.pk).update(
                 qr_code=self.qr_code.name if self.qr_code else "",
@@ -187,9 +172,38 @@ class Event(models.Model):
             )
 
 
+class FormResponse(models.Model):
+    """
+    Stores individual Google Form submission data received via the Apps Script webhook.
+    Each row = one person who registered via Google Form.
+    This is the authoritative registration record for all form-based signups.
+    """
+    event = models.ForeignKey(
+        Event, on_delete=models.CASCADE, related_name="form_responses"
+    )
+    submitted_at = models.DateTimeField(default=timezone.now)
+    # Fields sent by Apps Script — all optional so the webhook never fails
+    respondent_name  = models.CharField(max_length=220, blank=True)
+    respondent_email = models.CharField(max_length=254, blank=True)
+    respondent_phone = models.CharField(max_length=50, blank=True)
+    raw_data = models.JSONField(
+        default=dict, blank=True,
+        help_text="Full form submission payload from Apps Script."
+    )
+
+    class Meta:
+        ordering = ("-submitted_at",)
+
+    def __str__(self):
+        label = self.respondent_name or self.respondent_email or f"Response #{self.pk}"
+        return f"{self.event.title} — {label}"
+
+
 class EventRegistration(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="registrations")
-    participant = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="event_registrations")
+    participant = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="event_registrations"
+    )
     registration_date = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -198,7 +212,9 @@ class EventRegistration(models.Model):
 
 class EventAttendance(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="attendance")
-    participant = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="event_attendance")
+    participant = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="event_attendance"
+    )
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:

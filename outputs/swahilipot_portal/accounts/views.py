@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404, render, redirect
 from core.permissions import role_required
 from .forms import ProfileForm, UserEditForm
@@ -113,7 +114,6 @@ def user_reset_password(request, pk):
 
 # ── Department management ─────────────────────────────────────────────────
 
-from .models import Department
 from django import forms as django_forms
 
 
@@ -284,3 +284,68 @@ def department_assign_task(request, dept_pk):
     messages.success(request, f"Task assigned to {count} member{'s' if count != 1 else ''} in {dept.name}.")
     return redirect("accounts:departments")
 
+
+
+# ── Self-service password recovery (no email) ─────────────────────────────────
+
+def password_recover(request):
+    """
+    Custom password recovery that needs no email.
+    Step 1 (GET / invalid POST): show form asking for username, email, old password.
+    Step 2 (valid POST, credentials match): show set-new-password form.
+    Step 3 (new password POST): save and redirect to login.
+
+    Security: the user must supply their username, the email on their account,
+    AND a password they previously used (authenticate() checks the current hash).
+    All three must match before they can set a new password.
+    """
+    from django.contrib.auth.forms import SetPasswordForm
+
+    # ── Phase 2: set new password after identity verified ────────────────
+    if request.method == "POST" and "new_password1" in request.POST:
+        # Re-verify the hidden token (username stored in session)
+        recover_username = request.session.get("recover_username")
+        if not recover_username:
+            messages.error(request, "Session expired. Please start again.")
+            return redirect("accounts:password_recover")
+
+        try:
+            target = User.objects.get(username=recover_username)
+        except User.DoesNotExist:
+            messages.error(request, "Invalid session. Please start again.")
+            return redirect("accounts:password_recover")
+
+        form = SetPasswordForm(target, request.POST)
+        if form.is_valid():
+            form.save()
+            del request.session["recover_username"]
+            messages.success(request, "Password changed successfully. Please log in with your new password.")
+            return redirect("login")
+        return render(request, "registration/password_recover_set.html", {"form": form})
+
+    # ── Phase 1: verify identity ──────────────────────────────────────────
+    error = None
+    if request.method == "POST":
+        username    = request.POST.get("username", "").strip()
+        email       = request.POST.get("email", "").strip().lower()
+        old_password = request.POST.get("old_password", "")
+
+        # All three fields must be provided
+        if not username or not email or not old_password:
+            error = "All fields are required."
+        else:
+            # Check username + old password via Django auth
+            user = authenticate(request, username=username, password=old_password)
+            if user is None:
+                error = "Incorrect username or password."
+            elif user.email.lower() != email:
+                error = "The email address does not match our records for that account."
+            elif not user.is_active:
+                error = "This account is inactive. Contact an administrator."
+            else:
+                # Identity confirmed — store username in session, show new-password form
+                request.session["recover_username"] = user.username
+                set_form = SetPasswordForm(user)
+                return render(request, "registration/password_recover_set.html", {"form": set_form})
+
+    return render(request, "registration/password_recover.html", {"error": error})

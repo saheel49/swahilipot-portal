@@ -2,13 +2,16 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.db import models as db_models
 from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+from django.db import models as db_models
+import json
 from core.permissions import capability_required
 from core.notify import notify_all, notify_user, notify_managers
 from core.reports import excel_response, pdf_response
 from .forms import EventForm
-from .models import Event, EventAttendance, EventRegistration
+from .models import Event, EventAttendance, EventRegistration, FormResponse
 
 
 @login_required
@@ -50,97 +53,43 @@ def event_detail(request, pk):
 
 @login_required
 def register(request, pk):
-    """
-    Portal direct registration.
-    1. Records the registration in the DB (for portal tracking).
-    2. Redirects to the pre-filled Google Form so the response is also
-       captured in Google Sheets with the event ID pre-filled.
-    """
-    event = get_object_or_404(Event, pk=pk)
-    if event.is_past:
-        messages.error(request, "This event has already ended. Registration is closed.")
-        return redirect("events:detail", pk=pk)
-    if event.is_full:
-        messages.error(request, "Event capacity has been reached. Registration is closed.")
-        return redirect("events:detail", pk=pk)
-
-    _, created = EventRegistration.objects.get_or_create(event=event, participant=request.user)
-    if created:
-        notify_user(
-            request.user,
-            f"Registered for: {event.title}",
-            f'Your registration for "{event.title}" on {event.start_date:%b %d, %Y} is confirmed.',
-            link=f"/events/{event.pk}/",
-        )
-        notify_managers(
-            f"New event registration: {event.title}",
-            f'{request.user} registered for "{event.title}".',
-            link=f"/events/{event.pk}/",
-        )
-        # Notify everyone if event just became full
-        if event.is_full:
-            notify_all(
-                f"Event fully booked: {event.title}",
-                f'"{event.title}" on {event.start_date:%b %d, %Y} has reached maximum capacity ({event.capacity} people). Registration is now closed.',
-                link=f"/events/{event.pk}/",
-            )
-
-    # Always open the pre-filled Google Form so the response lands in Sheets
-    # The form is pre-filled with the event ID so Sheets tracks which event
-    form_url = event.get_registration_url()
-    messages.success(request, f'Registration confirmed! Please complete the form to finalise your spot.')
-    # Redirect to a page that shows both the success message AND opens the form
-    return render(request, "events/register_redirect.html", {
-        "event": event,
-        "form_url": form_url,
-    })
-
-
-@login_required
-def cancel_registration(request, pk):
-    EventRegistration.objects.filter(event_id=pk, participant=request.user).delete()
-    notify_managers(
-        "Event registration cancelled",
-        f"{request.user} cancelled their registration for event #{pk}.",
-    )
-    messages.success(request, "Registration cancelled.")
+    """Portal direct registration has been removed — QR code scan is the only way."""
+    messages.info(request, "Please scan the event QR code to register.")
     return redirect("events:detail", pk=pk)
 
 
 def qr_scan(request, qr_uuid):
     """
-    Stable portal QR-code scan handler — keyed by qr_uuid so printed codes
-    never break even if the event is edited.
+    QR-code scan handler — redirects to the pre-filled Google Form.
 
-    Flow for BOTH phone camera and portal users:
-      → Record in portal DB (if authenticated)
-      → Open pre-filled Google Form (event ID pre-filled) so every
-         registration is captured in Google Sheets regardless of source.
+    The live count increments ONLY when the Apps Script webhook fires
+    after the user actually submits the Google Form — not on scan.
 
-    The pre-filled Event ID field in the form lets you filter Google Sheets
-    responses by event — both QR scans and direct portal registrations appear
-    in the same sheet, tagged with the event's portal ID.
+    Unauthenticated (phone camera scan):
+      → redirect directly to the pre-filled Google Form.
+
+    Authenticated (portal user):
+      → record in DB then show confirmation page with form link.
     """
     event = get_object_or_404(Event, qr_uuid=qr_uuid)
-
-    # Build the pre-filled form URL for this specific event
     form_url = event.get_registration_url()
 
-    # ── Unauthenticated (phone camera scan) ──────────────────────────────
-    if not request.user.is_authenticated:
-        # Go straight to the pre-filled Google Form
-        return redirect(form_url)
-
-    # ── Authenticated portal user ────────────────────────────────────────
     if event.is_past:
-        messages.warning(request, f'"{event.title}" has already ended. Registration is closed.')
-        return redirect("events:detail", pk=event.pk)
+        return render(request, "events/qr_closed.html", {"event": event, "reason": "ended"})
 
     if event.is_full:
-        messages.warning(request, f'"{event.title}" is fully booked ({event.capacity}/{event.capacity}).')
-        return redirect("events:detail", pk=event.pk)
+        return render(request, "events/qr_closed.html", {"event": event, "reason": "full"})
 
-    # Record in portal DB
+    if not request.user.is_authenticated:
+        # Phone camera scan — go straight to the Google Form immediately
+        if form_url:
+            return redirect(form_url)
+        return render(request, "events/qr_closed.html", {
+            "event": event,
+            "reason": "no_form",
+        })
+
+    # Authenticated portal user — record attendance in DB then show confirmation
     EventRegistration.objects.get_or_create(event=event, participant=request.user)
     _, created = EventAttendance.objects.get_or_create(event=event, participant=request.user)
     if created:
@@ -156,14 +105,6 @@ def qr_scan(request, qr_uuid):
             link=f"/events/{event.pk}/",
         )
 
-    if event.is_full:
-        notify_all(
-            f"Event fully booked: {event.title}",
-            f'"{event.title}" has reached maximum capacity ({event.capacity} people). Registration is now closed.',
-            link=f"/events/{event.pk}/",
-        )
-
-    # Show an intermediate page that confirms the DB record and opens the form
     return render(request, "events/register_redirect.html", {
         "event": event,
         "form_url": form_url,
@@ -171,53 +112,48 @@ def qr_scan(request, qr_uuid):
     })
 
 
-def qr_attend(request, pk):
-    """
-    Legacy QR code scan handler (kept for backward compatibility).
-    New QR codes use qr_scan() via /events/qr/<uuid>/.
-    """
-    event = get_object_or_404(Event, pk=pk)
-    google_form_url = event.get_registration_url()
-
-    if request.user.is_authenticated:
-        EventRegistration.objects.get_or_create(event=event, participant=request.user)
-        _, created = EventAttendance.objects.get_or_create(event=event, participant=request.user)
-        if created:
-            notify_user(
-                request.user,
-                f"Attendance recorded: {event.title}",
-                f'Your attendance at "{event.title}" has been recorded. Thank you for joining!',
-                link=f"/events/{event.pk}/",
-            )
-            notify_managers(
-                f"Event attendance: {event.title}",
-                f'{request.user} attended "{event.title}".',
-                link=f"/events/{event.pk}/",
-            )
-        messages.success(
-            request,
-            f'Attendance recorded for "{event.title}". '
-            "Please complete the Google Form to confirm your details.",
-        )
-
-    return redirect(google_form_url)
-
-
 @login_required
 def registration_count_api(request, pk):
     """
-    AJAX endpoint — returns live registration count and capacity status.
-    Called by the event detail page every 30 seconds.
+    AJAX endpoint — returns live QR scan / form response count.
+    Called by the event detail page every 15 seconds.
+    NOTE: no @login_required — this must be publicly accessible so the
+    event detail page can poll it even on a phone that is not logged in.
     """
     event = get_object_or_404(Event, pk=pk)
-    count = event.registrations.count()
+    form_count = event.form_response_count
     return JsonResponse({
-        "count": count,
-        "capacity": event.capacity,
-        "is_full": count >= event.capacity,
-        "is_past": event.is_past,
-        "registration_open": event.registration_open,
+        "portal_count":  form_count,
+        "form_count":    form_count,
+        "capacity":      event.capacity,
+        "is_full":       form_count >= event.capacity,
+        "is_past":       event.is_past,
+        "registration_open": not event.is_past and form_count < event.capacity,
     })
+
+
+@capability_required("can_manage_events")
+def event_delete(request, pk):
+    """Admin deletes an event and all its registrations/attendance records."""
+    event = get_object_or_404(Event, pk=pk)
+    if request.method == "POST":
+        title = event.title
+        # Delete QR code and banner files from disk
+        if event.qr_code:
+            try:
+                event.qr_code.delete(save=False)
+            except Exception:
+                pass
+        if event.banner:
+            try:
+                event.banner.delete(save=False)
+            except Exception:
+                pass
+        event.delete()
+        messages.success(request, f'Event "{title}" has been deleted.')
+        return redirect("events:list")
+    # GET — show confirmation page
+    return render(request, "events/confirm_delete.html", {"event": event})
 
 
 @capability_required("can_manage_events")
@@ -236,35 +172,112 @@ def regenerate_qr(request, pk):
 @capability_required("can_manage_events")
 def report(request, pk, fmt):
     event = get_object_or_404(Event, pk=pk)
-    rows = [
-        [
-            r.participant.get_full_name() or r.participant.username,
-            r.participant.email,
-            r.registration_date.strftime("%d %b %Y, %H:%M"),
-            "Yes" if EventAttendance.objects.filter(event=event, participant=r.participant).exists() else "No",
-        ]
-        for r in event.registrations.select_related("participant")
-    ]
-    headers = ["Participant", "Email", "Registration Date", "Attended"]
-    if fmt == "xlsx":
-        return excel_response(f"event-{event.pk}-{event.title[:30]}-report", headers, rows)
-    return pdf_response(
-        f"event-{event.pk}-{event.title[:30]}-report",
-        f"Event Report: {event.title}",
-        headers,
-        rows,
+
+    # Primary: Google Form responses stored by the webhook (form_responses)
+    form_rows = list(
+        event.form_responses
+        .order_by("submitted_at")
+        .values_list(
+            "respondent_name", "respondent_email",
+            "respondent_phone", "submitted_at", "raw_data"
+        )
     )
 
-import json
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+    # Fallback: portal registrations (logged-in users who scanned)
+    portal_rows = [
+        (
+            r.participant.get_full_name() or r.participant.username,
+            r.participant.email,
+            getattr(r.participant, "phone_number", "") or "",
+            r.registration_date,
+            {},
+        )
+        for r in event.registrations.select_related("participant").order_by("registration_date")
+    ]
 
+    # Merge — deduplicate by email where possible
+    seen_emails = set()
+    rows = []
+
+    for name, email, phone, when, raw in form_rows:
+        key = (email or "").lower().strip()
+        if key:
+            seen_emails.add(key)
+        source = "Google Form"
+        # Try to pull extra fields from raw_data
+        if not name and raw:
+            name = raw.get("name") or raw.get("respondent_name") or ""
+        if not email and raw:
+            email = raw.get("email") or raw.get("respondent_email") or ""
+        if not phone and raw:
+            phone = raw.get("phone") or raw.get("respondent_phone") or ""
+        rows.append([
+            name or "—",
+            email or "—",
+            phone or "—",
+            when.strftime("%d %b %Y, %H:%M") if hasattr(when, "strftime") else str(when),
+            source,
+        ])
+
+    for name, email, phone, when, _ in portal_rows:
+        key = (email or "").lower().strip()
+        if key and key in seen_emails:
+            continue  # already counted via form response
+        rows.append([
+            name or "—",
+            email or "—",
+            phone or "—",
+            when.strftime("%d %b %Y, %H:%M") if hasattr(when, "strftime") else str(when),
+            "Portal Login",
+        ])
+
+    # If no individual records exist yet, show a summary row with the count
+    if not rows:
+        rows = [["(No individual data stored)", "", "", "", f"{event.form_response_count} total responses"]]
+
+    headers = ["Name", "Email", "Phone", "Registered At", "Source"]
+    filename = f"event-{event.pk}-{event.title[:30]}-registrations"
+
+    if fmt == "xlsx":
+        return excel_response(filename, headers, rows)
+    return pdf_response(filename, f"Registrations: {event.title}", headers, rows)
 
 @csrf_exempt
 @require_POST
 def form_response_webhook(request, pk):
     """
-    Webhook called by Google Apps Script whenever a Google Form response is submitted.
+    Webhook called by Google Apps Script when a Google Form response is submitted.
+
+    The Apps Script POSTs to /events/<pk>/form-response/ with JSON body:
+        { "event_id": "<event pk>", "timestamp": "..." }
+
+    The event_id in the body is matched against the pk in the URL — both must
+    agree (the URL pk is the authoritative event, the body event_id is verified
+    for extra safety).  If you use one Apps Script for all events, post to the
+    correct URL for each event or use the general endpoint below.
+
+    Optional shared secret header for security:
+        X-Webhook-Secret: <value matching settings.EVENTS_WEBHOOK_SECRET>
+
+    Google Apps Script to add to your Form's linked spreadsheet:
+    ──────────────────────────────────────────────────────────────
+    function onFormSubmit(e) {
+      var eventId = e.namedValues["Event ID"][0];   // field name in your form
+      var url     = "https://<your-domain>/events/" + eventId + "/form-response/";
+      var secret  = "<your-EVENTS_WEBHOOK_SECRET>";
+      UrlFetchApp.fetch(url, {
+        method: "post",
+        contentType: "application/json",
+        headers: { "X-Webhook-Secret": secret },
+        payload: JSON.stringify({
+          event_id: eventId,
+          timestamp: new Date().toISOString()
+        }),
+        muteHttpExceptions: true
+      });
+    }
+    // Trigger: Edit > Current project's triggers > onFormSubmit > From spreadsheet > On form submit
+    ──────────────────────────────────────────────────────────────
     """
     from django.conf import settings
 
@@ -279,11 +292,135 @@ def form_response_webhook(request, pk):
     except (ValueError, TypeError):
         body = {}
 
-    Event.objects.filter(pk=pk).update(form_response_count=db_models.F("form_response_count") + 1)
+    # Respect capacity — don't count past the limit
+    if event.form_response_count >= event.capacity:
+        return JsonResponse({
+            "ok": False,
+            "reason": "capacity_reached",
+            "event_id": event.pk,
+            "form_response_count": event.form_response_count,
+            "capacity": event.capacity,
+        })
+
+    # Save individual response record
+    FormResponse.objects.create(
+        event=event,
+        respondent_name=body.get("name", body.get("respondent_name", "")),
+        respondent_email=body.get("email", body.get("respondent_email", "")),
+        respondent_phone=body.get("phone", body.get("respondent_phone", "")),
+        raw_data=body,
+    )
+
+    # Atomically increment the counter
+    Event.objects.filter(pk=pk).update(
+        form_response_count=db_models.F("form_response_count") + 1
+    )
     event.refresh_from_db(fields=["form_response_count"])
+
+    # Notify everyone when the event just became full
+    if event.form_response_count >= event.capacity:
+        notify_all(
+            f"Event fully booked: {event.title}",
+            f'"{event.title}" has reached maximum capacity ({event.capacity} registrations). '
+            f'The QR code has been automatically disabled.',
+            link=f"/events/{event.pk}/",
+        )
 
     return JsonResponse({
         "ok": True,
         "event_id": event.pk,
         "form_response_count": event.form_response_count,
+        "capacity": event.capacity,
+        "is_full": event.form_response_count >= event.capacity,
+    })
+
+
+@csrf_exempt
+@require_POST
+def form_response_webhook_byid(request):
+    """
+    Alternative webhook — event ID comes from the JSON body, not the URL.
+    Useful when one Apps Script handles all events.
+
+    POST to /events/form-response/  with body:
+        { "event_id": "42", "timestamp": "..." }
+    """
+    from django.conf import settings
+
+    secret = getattr(settings, "EVENTS_WEBHOOK_SECRET", "")
+    if secret and request.headers.get("X-Webhook-Secret") != secret:
+        return JsonResponse({"error": "Forbidden"}, status=403)
+
+    try:
+        body = json.loads(request.body) if request.body else {}
+    except (ValueError, TypeError):
+        body = {}
+
+    event_id = body.get("event_id") or body.get("eventId")
+    if not event_id:
+        return JsonResponse({"error": "event_id required in body"}, status=400)
+
+    # Support lookup by numeric PK or by event title
+    event = None
+    event_id_str = str(event_id).strip()
+    if event_id_str.isdigit():
+        try:
+            event = Event.objects.get(pk=int(event_id_str))
+        except Event.DoesNotExist:
+            pass
+    if event is None:
+        # Try by title (case-insensitive) — used when Apps Script sends the event title
+        try:
+            event = Event.objects.get(title__iexact=event_id_str)
+        except Event.DoesNotExist:
+            return JsonResponse({"error": f"Event '{event_id_str}' not found"}, status=404)
+        except Event.MultipleObjectsReturned:
+            # If multiple events share the same title, pick the most recent active one
+            event = (
+                Event.objects
+                .filter(title__iexact=event_id_str, end_date__gte=timezone.now())
+                .order_by("start_date")
+                .first()
+            )
+            if not event:
+                return JsonResponse({"error": f"Multiple events named '{event_id_str}', none active"}, status=404)
+
+    # Respect capacity — don't count past the limit
+    if event.form_response_count >= event.capacity:
+        return JsonResponse({
+            "ok": False,
+            "reason": "capacity_reached",
+            "event_id": event.pk,
+            "form_response_count": event.form_response_count,
+            "capacity": event.capacity,
+        })
+
+    # Save individual response record
+    FormResponse.objects.create(
+        event=event,
+        respondent_name=body.get("name", body.get("respondent_name", "")),
+        respondent_email=body.get("email", body.get("respondent_email", "")),
+        respondent_phone=body.get("phone", body.get("respondent_phone", "")),
+        raw_data=body,
+    )
+
+    Event.objects.filter(pk=event.pk).update(
+        form_response_count=db_models.F("form_response_count") + 1
+    )
+    event.refresh_from_db(fields=["form_response_count"])
+
+    if event.form_response_count >= event.capacity:
+        notify_all(
+            f"Event fully booked: {event.title}",
+            f'"{event.title}" has reached maximum capacity ({event.capacity} registrations). '
+            f'The QR code has been automatically disabled.',
+            link=f"/events/{event.pk}/",
+        )
+
+    return JsonResponse({
+        "ok": True,
+        "event_id": event.pk,
+        "form_response_count": event.form_response_count,
+        "capacity": event.capacity,
+        "is_full": event.form_response_count >= event.capacity,
     })

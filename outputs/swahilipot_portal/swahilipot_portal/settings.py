@@ -2,13 +2,18 @@ from pathlib import Path
 import os
 
 # ── Load .env file if it exists (no extra packages needed) ────────────────
+# Uses direct os.environ assignment so .env values ALWAYS win over any
+# stale values that might already be in the environment from a prior run.
 _env_file = Path(__file__).resolve().parent.parent / ".env"
 if _env_file.exists():
-    for _line in _env_file.read_text().splitlines():
+    for _line in _env_file.read_text(encoding="utf-8").splitlines():
         _line = _line.strip()
         if _line and not _line.startswith("#") and "=" in _line:
             _key, _, _val = _line.partition("=")
-            os.environ.setdefault(_key.strip(), _val.strip())
+            _key = _key.strip()
+            _val = _val.strip()
+            # Always overwrite so the .env file is the single source of truth
+            os.environ[_key] = _val
 
 try:
     import dj_database_url
@@ -20,6 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-only-change-me")
 DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() in {"1", "true", "yes"}
 ALLOWED_HOSTS = [h for h in os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") if h]
+ALLOWED_HOSTS += ["oppose-shrink-speed.ngrok-free.dev"]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -44,9 +50,9 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    # Single-login: expires stale sessions when the user logs in elsewhere
-    "core.middleware.SingleLoginMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    # Single-login: must come after MessageMiddleware so messages.warning() works
+    "core.middleware.SingleLoginMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -77,8 +83,8 @@ else:
 AUTH_USER_MODEL = "accounts.User"
 
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+     "OPTIONS": {"min_length": 8}},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
@@ -146,3 +152,28 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False
 X_FRAME_OPTIONS = "DENY"
+
+# ── Site base URL (used for QR code generation when no HTTP request is available)
+# Set this to the full public URL of your server, e.g. via ngrok:
+#   DJANGO_SITE_BASE_URL=https://abc123.ngrok-free.app
+# When running locally without ngrok: http://127.0.0.1:8000
+SITE_BASE_URL = os.getenv("DJANGO_SITE_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+
+# ── Google Form integration ───────────────────────────────────────────────────
+# Set these in your .env file — no code changes needed.
+#
+# GOOGLE_FORM_BASE_URL          — the /viewform URL of your Google Form
+#   e.g. https://docs.google.com/forms/d/e/1FAIpQLSe.../viewform
+#
+# GOOGLE_FORM_EVENT_ID_FIELD    — entry.XXXXXXXXX key for your "Event ID" question
+#   How to find it:
+#     1. Open your Google Form
+#     2. Click ⋮ (three dots) → "Get pre-filled link"
+#     3. Type anything in the Event ID field → click "Get link"
+#     4. Copy the URL — find the part ?entry.XXXXXXXXX=  and copy entry.XXXXXXXXX
+#
+# GOOGLE_FORM_EVENT_NAME_FIELD  — entry.YYYYYYYYY for an "Event Name" question (optional)
+#
+GOOGLE_FORM_BASE_URL         = os.getenv("GOOGLE_FORM_BASE_URL", "").strip()
+GOOGLE_FORM_EVENT_ID_FIELD   = os.getenv("GOOGLE_FORM_EVENT_ID_FIELD", "").strip()
+GOOGLE_FORM_EVENT_NAME_FIELD = os.getenv("GOOGLE_FORM_EVENT_NAME_FIELD", "").strip()

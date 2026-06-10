@@ -35,11 +35,16 @@
       <a class="btn btn-outline-primary btn-sm" href="{% url 'events:detail' event.pk %}">
         <i class="bi bi-eye me-1"></i>View Event
       </a>
+      {% if user.can_manage_events %}
+      <a class="btn btn-outline-danger btn-sm" href="{% url 'events:delete' event.pk %}">
+        <i class="bi bi-trash me-1"></i>Delete
+      </a>
+      {% endif %}
       <span class="ms-auto text-muted small align-self-center">
         {% if event.is_full %}
           <span class="text-danger fw-bold">FULL</span> · {{ event.capacity }} max
         {% else %}
-          {{ event.registration_count }}/{{ event.capacity }} registered
+          {{ event.form_response_count }}/{{ event.capacity }} registered
         {% endif %}
       </span>
     </div>
@@ -79,8 +84,13 @@
       <a class="btn btn-outline-secondary btn-sm" href="{% url 'events:detail' event.pk %}">
         <i class="bi bi-eye me-1"></i>View Details
       </a>
+      {% if user.can_manage_events %}
+      <a class="btn btn-outline-danger btn-sm" href="{% url 'events:delete' event.pk %}">
+        <i class="bi bi-trash me-1"></i>Delete
+      </a>
+      {% endif %}
       <span class="ms-auto text-muted small align-self-center">
-        {{ event.registration_count }} registered · {{ event.attendance_count }} attended
+        {{ event.form_response_count }} registered · {{ event.attendance_count }} attended
       </span>
     </div>
   </div>

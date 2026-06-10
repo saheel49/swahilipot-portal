@@ -16,4 +16,6 @@ urlpatterns = [
     path("users/add/",                                views.user_add,              name="user_add"),
     path("users/<int:pk>/reset-password/",            views.user_reset_password,   name="user_reset_password"),
     path("departments/<int:dept_pk>/assign-task/",    views.department_assign_task, name="department_assign_task"),
+    # Custom password recovery — no email needed
+    path("recover/", views.password_recover, name="password_recover"),
 ]

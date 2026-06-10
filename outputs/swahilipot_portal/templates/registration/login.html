@@ -265,6 +265,45 @@
       .left-panel{display:none}
       .right-panel{width:100%;min-width:0;padding:36px 28px}
     }
+
+    /* ── Radio FM player ── */
+    .radio-player{
+      margin-top:14px;
+      background:linear-gradient(135deg,#0a1628,#1e3a5f);
+      border-radius:12px;border:1px solid rgba(96,165,250,.2);
+      overflow:hidden;
+    }
+    .radio-header{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:10px 14px;cursor:pointer;
+    }
+    .radio-title{display:flex;align-items:center;gap:8px}
+    .radio-label{font-size:.78rem;font-weight:700;color:#fff}
+    .radio-dot{
+      width:8px;height:8px;border-radius:50%;
+      background:#10b981;box-shadow:0 0 6px #10b981;
+      animation:pulse-dot 1.5s infinite;flex-shrink:0;
+    }
+    @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.35}}
+    .radio-actions{display:flex;align-items:center;gap:6px}
+    .radio-site-link{
+      color:rgba(255,255,255,.45);font-size:.8rem;
+      text-decoration:none;padding:3px 6px;border-radius:6px;
+      transition:color .2s;
+    }
+    .radio-site-link:hover{color:#60a5fa}
+    .radio-toggle-btn{
+      background:rgba(255,255,255,.1);border:none;color:#fff;
+      border-radius:6px;padding:3px 8px;cursor:pointer;font-size:.75rem;
+      transition:background .2s;
+    }
+    .radio-toggle-btn:hover{background:rgba(255,255,255,.2)}
+    .radio-frame-wrap{padding:0 10px 10px}
+    .radio-loading,.radio-down-msg{
+      font-size:.75rem;color:rgba(255,255,255,.6);
+      padding:10px 4px;display:flex;align-items:center;
+    }
+    .radio-down-msg a{color:#f87171;font-weight:600}
   </style>
 </head>
 <body>
@@ -335,6 +374,10 @@
         <i class="bi bi-globe2"></i>
         <a href="https://www.swahilipothub.co.ke" target="_blank">www.swahilipothub.co.ke</a>
       </div>
+      <div class="meta-row">
+        <i class="bi bi-broadcast"></i>
+        <a href="https://www.swahilipotfm.co.ke" target="_blank">www.swahilipotfm.co.ke</a>
+      </div>
     </div>
 
     <div class="features">
@@ -369,6 +412,7 @@
       </div>
       <div class="brand-links">
         <a href="https://www.swahilipothub.co.ke" target="_blank"><i class="bi bi-globe2"></i>Website</a>
+        <a href="https://www.swahilipotfm.co.ke" target="_blank"><i class="bi bi-broadcast"></i>Radio FM</a>
         <a href="https://twitter.com/swahilipothub" target="_blank"><i class="bi bi-twitter-x"></i>Twitter</a>
         <a href="https://www.instagram.com/swahilipothub" target="_blank"><i class="bi bi-instagram"></i>Instagram</a>
       </div>
@@ -414,7 +458,7 @@
   </form>
 
   <div style="text-align:center;margin-top:14px">
-    <a href="{% url 'password_reset' %}"
+    <a href="{% url 'accounts:password_recover' %}"
        style="font-size:.82rem;color:#1e40af;text-decoration:none;font-weight:600;">
       <i class="bi bi-key me-1"></i>Forgot your password?
     </a>
@@ -426,6 +470,46 @@
     <div class="c-chip"><i class="bi bi-envelope"></i>info@swahilipothub.co.ke</div>
     <div class="c-chip"><i class="bi bi-globe2"></i>
       <a href="https://www.swahilipothub.co.ke" target="_blank">swahilipothub.co.ke</a>
+    </div>
+    <div class="c-chip"><i class="bi bi-broadcast"></i>
+      <a href="https://www.swahilipotfm.co.ke" target="_blank">swahilipotfm.co.ke</a>
+    </div>
+  </div>
+
+  <!-- ── Radio FM Live Player ─────────────────────────────────────────── -->
+  <div class="radio-player" id="radioPlayer">
+    <div class="radio-header">
+      <div class="radio-title">
+        <span class="radio-dot" id="radioDot"></span>
+        <span class="radio-label">Swahilipot FM — Live</span>
+      </div>
+      <div class="radio-actions">
+        <a href="https://www.swahilipotfm.co.ke" target="_blank" class="radio-site-link" title="Open full site">
+          <i class="bi bi-box-arrow-up-right"></i>
+        </a>
+        <button class="radio-toggle-btn" id="radioToggleBtn" onclick="toggleRadioPanel()" title="Show / Hide player">
+          <i class="bi bi-chevron-down" id="radioChevron"></i>
+        </button>
+      </div>
+    </div>
+    <div class="radio-frame-wrap" id="radioFrameWrap" style="display:none">
+      <div class="radio-loading" id="radioLoading">
+        <span class="spinner-border spinner-border-sm text-primary me-2"></span>
+        Loading Swahilipot FM…
+      </div>
+      <div class="radio-down-msg" id="radioDownMsg" style="display:none">
+        <i class="bi bi-wifi-off me-2 text-danger"></i>
+        Radio appears to be down — <a href="https://www.swahilipotfm.co.ke/live" target="_blank">check website</a>
+      </div>
+      <iframe
+        id="radioIframe"
+        src=""
+        data-src="https://www.swahilipotfm.co.ke/live"
+        style="display:none;width:100%;height:220px;border:none;border-radius:8px"
+        allow="autoplay; fullscreen"
+        title="Swahilipot FM Live"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+      ></iframe>
     </div>
   </div>
 
@@ -467,6 +551,58 @@ function goTo(n) {
 }
 
 setInterval(function() { goTo(current + 1); }, 5000);
+
+// ── Radio FM Iframe Player ───────────────────────────────────────────────────
+(function () {
+  var wrap    = document.getElementById("radioFrameWrap");
+  var iframe  = document.getElementById("radioIframe");
+  var loading = document.getElementById("radioLoading");
+  var downMsg = document.getElementById("radioDownMsg");
+  var chevron = document.getElementById("radioChevron");
+  var open    = false;
+  var loaded  = false;
+
+  window.toggleRadioPanel = function () {
+    open = !open;
+    wrap.style.display = open ? "block" : "none";
+    chevron.className  = open ? "bi bi-chevron-up" : "bi bi-chevron-down";
+
+    if (open && !loaded) {
+      loaded = true;
+      loading.style.display = "flex";
+      iframe.style.display  = "none";
+      downMsg.style.display = "none";
+
+      // Load the iframe on first open
+      iframe.src = iframe.dataset.src;
+
+      // Timeout: if iframe doesn't load in 8 s, show "radio down"
+      var timer = setTimeout(function () {
+        if (iframe.style.display === "none") {
+          loading.style.display = "none";
+          downMsg.style.display = "flex";
+        }
+      }, 8000);
+
+      iframe.onload = function () {
+        clearTimeout(timer);
+        loading.style.display = "none";
+        downMsg.style.display  = "none";
+        iframe.style.display   = "block";
+      };
+
+      iframe.onerror = function () {
+        clearTimeout(timer);
+        loading.style.display = "none";
+        downMsg.style.display  = "flex";
+        iframe.style.display   = "none";
+      };
+    }
+  };
+
+  // Make the header row clickable too
+  document.querySelector(".radio-header").addEventListener("click", toggleRadioPanel);
+})();
 </script>
 </body>
 </html>
