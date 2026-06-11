@@ -153,6 +153,11 @@ SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False
 X_FRAME_OPTIONS = "DENY"
 
+# ── CSRF trusted origins for reverse proxies (Cloudflare Tunnel, ngrok, etc.)
+# Add your tunnel URL here, e.g. DJANGO_CSRF_TRUSTED_ORIGINS=https://abc.trycloudflare.com
+_csrf_origins = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").strip()
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(",") if o.strip()]
+
 # ── Site base URL (used for QR code generation when no HTTP request is available)
 # Set this to the full public URL of your server, e.g. via ngrok:
 #   DJANGO_SITE_BASE_URL=https://abc123.ngrok-free.app

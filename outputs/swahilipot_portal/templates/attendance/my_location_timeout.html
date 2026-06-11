@@ -5,11 +5,14 @@
     <h1><i class="bi bi-clock-history me-2"></i>Location Timeout</h1>
     <p class="text-muted small mb-0">Track when your device location was turned off, when it came back on, and how long it was off.</p>
   </div>
-  {% if user.can_view_reports %}
-  <a href="{% url 'dashboard:reports' %}" class="btn btn-sm btn-outline-primary">
-    <i class="bi bi-file-earmark-bar-graph me-1"></i>Download Reports
-  </a>
-  {% endif %}
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'attendance:location_timeout_report' 'pdf' %}" class="btn btn-sm btn-outline-danger">
+      <i class="bi bi-file-earmark-pdf me-1"></i>PDF Report
+    </a>
+    <a href="{% url 'attendance:location_timeout_report' 'xlsx' %}" class="btn btn-sm btn-outline-success">
+      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel Report
+    </a>
+  </div>
 </div>
 
 <!-- Summary cards -->

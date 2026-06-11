@@ -66,10 +66,10 @@
     </div>
   </a>
   <a href="{% url 'events:list' %}" class="metric-card metric-indigo" style="text-decoration:none">
-    <div class="metric-icon"><i class="bi bi-qr-code-scan"></i></div>
+    <div class="metric-icon"><i class="bi bi-calendar-check-fill"></i></div>
     <div class="metric-body">
-      <div class="metric-value" id="stat-event-scans">{{ event_scans_today }}</div>
-      <div class="metric-label">Event Scans Today</div>
+      <div class="metric-value" id="stat-event-registrations">{{ total_event_registrations }}</div>
+      <div class="metric-label">Event Registrations</div>
     </div>
   </a>
 </div>
@@ -479,7 +479,7 @@ a.metric-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,
     attendanceToday: document.getElementById('stat-attendance-today'),
     notCheckedIn:   document.getElementById('stat-not-checked-in'),
     lateArrivals:   document.getElementById('stat-late-arrivals'),
-    eventScans:     document.getElementById('stat-event-scans'),
+    eventRegistrations: document.getElementById('stat-event-registrations'),
   };
 
   function fetchStats() {
@@ -487,11 +487,11 @@ a.metric-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
         if (!data) return;
-        if (els.checkedInNow)    els.checkedInNow.textContent    = data.checked_in_now;
-        if (els.attendanceToday) els.attendanceToday.textContent = data.attendance_today;
-        if (els.notCheckedIn)    els.notCheckedIn.textContent    = data.not_checked_in;
-        if (els.lateArrivals)    els.lateArrivals.textContent    = data.late_arrivals;
-        if (els.eventScans)      els.eventScans.textContent      = data.event_scans_today;
+        if (els.checkedInNow)         els.checkedInNow.textContent         = data.checked_in_now;
+        if (els.attendanceToday)      els.attendanceToday.textContent      = data.attendance_today;
+        if (els.notCheckedIn)         els.notCheckedIn.textContent         = data.not_checked_in;
+        if (els.lateArrivals)         els.lateArrivals.textContent         = data.late_arrivals;
+        if (els.eventRegistrations)   els.eventRegistrations.textContent   = data.total_event_registrations;
       })
       .catch(function () { /* silently ignore network errors */ });
   }

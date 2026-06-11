@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-geo-alt-slash me-2 text-warning"></i>Location Activity</h1>
+    <p class="text-muted small mb-0">All staff location on/off events — most recent first.</p>
+  </div>
+  {% if unresolved_count > 0 %}
+  <span class="badge bg-danger fs-6 px-3 py-2">
+    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+    {{ unresolved_count }} currently off
+  </span>
+  {% endif %}
+</div>
+
+<div class="panel">
+  {% if logs %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" style="font-size:.88rem">
+      <thead style="background:#1e40af;color:#fff">
+        <tr>
+          <th style="color:#fff">#</th>
+          <th style="color:#fff"><i class="bi bi-person me-1"></i>Staff Member</th>
+          <th style="color:#fff"><i class="bi bi-geo-alt-slash me-1"></i>Turned Off</th>
+          <th style="color:#fff"><i class="bi bi-geo-alt-fill me-1"></i>Turned On</th>
+          <th style="color:#fff"><i class="bi bi-clock me-1"></i>Duration Off</th>
+          <th style="color:#fff">Status</th>
+          <th style="color:#fff">History</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr {% if not log.turned_on_at %}style="background:#fff8f8"{% endif %}>
+          <td class="text-muted small">{{ forloop.counter }}</td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              {% if log.user.profile_photo %}
+                <img src="{{ log.user.profile_photo.url }}" alt=""
+                     style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0">
+              {% else %}
+                <span style="width:28px;height:28px;border-radius:50%;background:#e0e7ff;
+                             display:flex;align-items:center;justify-content:center;
+                             font-size:.7rem;font-weight:700;color:#1e40af;flex-shrink:0">
+                  {{ log.user.get_full_name|default:log.user.username|first|upper }}
+                </span>
+              {% endif %}
+              <div>
+                <div class="fw-semibold" style="font-size:.85rem">
+                  {{ log.user.get_full_name|default:log.user.username }}
+                </div>
+                <div class="text-muted" style="font-size:.72rem">{{ log.user.role }}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <div class="fw-semibold text-danger">{{ log.turned_off_at|date:"H:i" }}</div>
+            <div class="text-muted" style="font-size:.75rem">{{ log.turned_off_at|date:"d M Y" }}</div>
+          </td>
+          <td>
+            {% if log.turned_on_at %}
+            <div class="fw-semibold text-success">{{ log.turned_on_at|date:"H:i" }}</div>
+            <div class="text-muted" style="font-size:.75rem">{{ log.turned_on_at|date:"d M Y" }}</div>
+            {% else %}
+            <span class="badge bg-danger">Still Off</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if log.turned_on_at %}
+            <span class="badge" style="background:#fef3c7;color:#92400e;font-size:.82rem;padding:4px 10px">
+              <i class="bi bi-clock me-1"></i>{{ log.duration_display }}
+            </span>
+            {% else %}
+            <span class="text-danger fw-bold small">Active — location is off</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if log.turned_on_at %}
+            <span class="badge bg-success">Resolved</span>
+            {% else %}
+            <span class="badge bg-danger">Unresolved</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{% url 'attendance:location_log' log.user.pk %}"
+               class="btn btn-outline-primary btn-sm py-0 px-2"
+               title="View full history for {{ log.user.get_full_name|default:log.user.username }}">
+              <i class="bi bi-list-ul"></i>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="mt-3 text-muted small">
+    <i class="bi bi-info-circle me-1"></i>
+    Showing last {{ logs|length }} event{{ logs|length|pluralize }}.
+    Location events are recorded automatically when users enable or block GPS on their device.
+  </div>
+  {% else %}
+  <div class="text-center py-5 text-muted">
+    <i class="bi bi-geo-alt-fill fs-2 d-block mb-2"></i>
+    <p>No location activity recorded yet.</p>
+    <p class="small">Events appear here when staff turn location on or off while using the portal.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

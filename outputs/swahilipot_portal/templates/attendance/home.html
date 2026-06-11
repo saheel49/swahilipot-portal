@@ -41,6 +41,28 @@
     <h2><i class="bi bi-geo-alt me-2"></i>GPS Attendance</h2>
     <p class="text-muted mb-3">Approved site: <strong>{{ site.name|default:"Not configured" }}</strong></p>
 
+    {% if active_event and required_site and not current %}
+    <!-- Event venue requirement banner -->
+    <div class="alert alert-warning py-2 px-3 mb-3" style="border-left:4px solid #f59e0b">
+      <div class="d-flex align-items-start gap-2">
+        <i class="bi bi-calendar-event-fill text-warning mt-1 flex-shrink-0"></i>
+        <div>
+          <strong>Event today: {{ active_event.title }}</strong><br>
+          <span class="small">
+            You are registered for this event. You must check in at
+            <strong>{{ required_site.name }}</strong> — checking in at any other site will be rejected.
+          </span>
+        </div>
+      </div>
+    </div>
+    {% elif active_event and not required_site and not current %}
+    <div class="alert alert-info py-2 px-3 mb-3">
+      <i class="bi bi-calendar-event me-1"></i>
+      You are registered for <strong>{{ active_event.title }}</strong> today.
+      Check in normally to record your attendance.
+    </div>
+    {% endif %}
+
     {% if not site and not active_sites %}
       <div class="alert alert-warning">No active project site configured. An admin must add a project site first.</div>
       {% if user.is_portal_admin %}<a class="btn btn-primary" href="{% url 'attendance:site_create' %}"><i class="bi bi-plus-circle me-1"></i>Add Swahilipot Hub</a>{% endif %}
@@ -57,8 +79,14 @@
         <input type="hidden" name="latitude">
         <input type="hidden" name="longitude">
         <input type="hidden" name="site_id" value="{{ s.pk }}">
-        <button class="btn btn-primary w-100 text-start">
+        <button class="btn w-100 text-start
+          {% if required_site and s.pk == required_site.pk %}btn-success{% else %}btn-primary{% endif %}">
           <i class="bi bi-geo-alt me-2"></i>Check In at <strong>{{ s.name }}</strong>
+          {% if required_site and s.pk == required_site.pk %}
+            <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem">Event venue ✓</span>
+          {% elif required_site %}
+            <span class="badge bg-danger ms-1" style="font-size:.65rem">Wrong site for today's event</span>
+          {% endif %}
           <small class="d-block mt-1 fw-normal opacity-75">In: {{ s.expected_check_in_time }} · Out: {{ s.expected_check_out_time }}</small>
         </button>
       </form>
@@ -186,5 +214,5 @@ window.csrfToken="{{ csrf_token }}";
 </script>
 <script src="{% static 'js/notification_sounds.js' %}"></script>
 <script src="{% static 'js/attendance.js' %}"></script>
-<script src="{% static 'js/geofence.js' %}"></script>
+{# geofence.js is loaded globally by base.html — do not load it again here #}
 {% endblock %}

@@ -105,6 +105,27 @@
   </div>
 </div>
 
+<!-- Missed Checkout -->
+<div class="report-section mb-3">
+  <div class="report-section-header">
+    <i class="bi bi-door-open text-warning"></i>
+    <div>
+      <div class="report-section-title">Missed Checkout</div>
+      <div class="report-section-desc">Staff sessions that were automatically closed because they forgot to check out before the deadline.</div>
+    </div>
+  </div>
+  <div class="report-btns">
+    <a class="btn btn-outline-danger"
+       href="{% url 'attendance:missed_checkout_report' 'pdf' %}">
+      <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+    </a>
+    <a class="btn btn-outline-success"
+       href="{% url 'attendance:missed_checkout_report' 'xlsx' %}">
+      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+    </a>
+  </div>
+</div>
+
 <!-- Location Timeout -->
 <div class="report-section mb-3">
   <div class="report-section-header">
@@ -147,25 +168,110 @@
   </div>
 </div>
 
-<!-- Events -->
-<div class="report-section mb-3">
-  <div class="report-section-header">
+<!-- Events — per-event report downloads -->
+<div class="report-section mb-3" style="flex-direction:column;align-items:stretch">
+  <div class="report-section-header mb-3">
     <i class="bi bi-calendar-event-fill text-info"></i>
     <div>
-      <div class="report-section-title">Events</div>
-      <div class="report-section-desc">Event titles, locations, dates, registration counts, and attendance figures.</div>
+      <div class="report-section-title">Events — Per-Event Reports</div>
+      <div class="report-section-desc">
+        Download Registrations, No-Shows, and Not-Registered reports individually for each event.
+      </div>
     </div>
   </div>
-  <div class="report-btns">
-    <a class="btn btn-outline-danger"
-       href="{% url 'dashboard:report_download' 'events' 'pdf' %}?{{ request.GET.urlencode }}">
-      <i class="bi bi-file-earmark-pdf me-1"></i>PDF
-    </a>
-    <a class="btn btn-outline-success"
-       href="{% url 'dashboard:report_download' 'events' 'xlsx' %}?{{ request.GET.urlencode }}">
-      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
-    </a>
+
+  {% if events_data %}
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead style="background:#1e40af;color:#fff">
+        <tr>
+          <th style="color:#fff">Event</th>
+          <th style="color:#fff" class="text-center">Date</th>
+          <th style="color:#fff" class="text-center">Registered</th>
+          <th style="color:#fff" class="text-center">Attended</th>
+          <th style="color:#fff" class="text-center">No-Shows</th>
+          <th style="color:#fff" class="text-center">Not Reg.</th>
+          <th style="color:#fff" class="text-center">Registrations</th>
+          <th style="color:#fff" class="text-center">No-Shows</th>
+          <th style="color:#fff" class="text-center">Not Registered</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in events_data %}
+        <tr>
+          <td>
+            <a href="{% url 'events:detail' row.event.pk %}" class="fw-semibold text-decoration-none" style="color:#1e40af">
+              {{ row.event.title }}
+            </a>
+            {% if row.event.is_past %}
+              <span class="badge text-bg-secondary ms-1" style="font-size:.6rem">Past</span>
+            {% else %}
+              <span class="badge text-bg-success ms-1" style="font-size:.6rem">Active</span>
+            {% endif %}
+          </td>
+          <td class="text-center text-muted small">{{ row.event.start_date|date:"M d, Y" }}</td>
+          <td class="text-center"><span class="badge bg-primary">{{ row.registered }}</span></td>
+          <td class="text-center"><span class="badge bg-success">{{ row.attended }}</span></td>
+          <td class="text-center">
+            {% if row.no_show > 0 %}<span class="badge bg-danger">{{ row.no_show }}</span>
+            {% else %}<span class="badge bg-light text-muted border">0</span>{% endif %}
+          </td>
+          <td class="text-center">
+            {% if row.not_reg > 0 %}<span class="badge bg-secondary">{{ row.not_reg }}</span>
+            {% else %}<span class="badge bg-light text-muted border">0</span>{% endif %}
+          </td>
+          <!-- Registrations downloads -->
+          <td class="text-center">
+            <div class="d-flex gap-1 justify-content-center">
+              <a href="{% url 'events:report' row.event.pk 'pdf' %}" class="btn btn-outline-danger btn-sm py-0 px-2" title="Registrations PDF">
+                <i class="bi bi-file-earmark-pdf"></i>
+              </a>
+              <a href="{% url 'events:report' row.event.pk 'xlsx' %}" class="btn btn-outline-success btn-sm py-0 px-2" title="Registrations Excel">
+                <i class="bi bi-file-earmark-spreadsheet"></i>
+              </a>
+            </div>
+          </td>
+          <!-- No-Shows downloads -->
+          <td class="text-center">
+            <div class="d-flex gap-1 justify-content-center">
+              <a href="{% url 'events:no_shows_report' row.event.pk 'pdf' %}" class="btn btn-outline-danger btn-sm py-0 px-2" title="No-Shows PDF">
+                <i class="bi bi-file-earmark-pdf"></i>
+              </a>
+              <a href="{% url 'events:no_shows_report' row.event.pk 'xlsx' %}" class="btn btn-outline-success btn-sm py-0 px-2" title="No-Shows Excel">
+                <i class="bi bi-file-earmark-spreadsheet"></i>
+              </a>
+            </div>
+          </td>
+          <!-- Not Registered downloads -->
+          <td class="text-center">
+            <div class="d-flex gap-1 justify-content-center">
+              <a href="{% url 'events:not_registered_report' row.event.pk 'pdf' %}" class="btn btn-outline-danger btn-sm py-0 px-2" title="Not Registered PDF">
+                <i class="bi bi-file-earmark-pdf"></i>
+              </a>
+              <a href="{% url 'events:not_registered_report' row.event.pk 'xlsx' %}" class="btn btn-outline-success btn-sm py-0 px-2" title="Not Registered Excel">
+                <i class="bi bi-file-earmark-spreadsheet"></i>
+              </a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
+  <!-- Column legend -->
+  <div class="mt-2 d-flex flex-wrap gap-3" style="font-size:.72rem;color:#6b7280">
+    <span><i class="bi bi-file-earmark-pdf text-danger me-1"></i>PDF download</span>
+    <span><i class="bi bi-file-earmark-spreadsheet text-success me-1"></i>Excel download</span>
+    <span><span class="badge bg-primary" style="font-size:.6rem">n</span> = registered portal users</span>
+    <span><span class="badge bg-success" style="font-size:.6rem">n</span> = geofence check-ins</span>
+    <span><span class="badge bg-danger" style="font-size:.6rem">n</span> = registered but didn't attend</span>
+    <span><span class="badge bg-secondary" style="font-size:.6rem">n</span> = portal users who never registered</span>
+  </div>
+  {% else %}
+  <div class="text-muted small py-3 text-center">
+    <i class="bi bi-calendar-x me-1"></i>No events found — create an event first.
+  </div>
+  {% endif %}
 </div>
 
 <!-- Suggestions -->

@@ -1,29 +1,27 @@
 from django.contrib import admin
 from django.contrib import messages
-from .models import Event, EventAttendance, EventRegistration, FormResponse
+from .models import Event, EventAttendance, EventRegistration, EventCheckIn, FormResponse
 
 
-def regenerate_qr_codes(modeladmin, request, queryset):
-    """Admin action: regenerate QR codes for selected events."""
+def regenerate_form_urls(modeladmin, request, queryset):
+    """Admin action: refresh pre-filled Google Form URLs for selected events."""
+    from .models import build_form_url
     count = 0
     for event in queryset:
-        event.google_form_url = ""
-        event.save()
-        count += 1
-    modeladmin.message_user(
-        request,
-        f"QR codes regenerated for {count} event(s). They now point to the real Google Form.",
-        messages.SUCCESS,
-    )
+        new_url = build_form_url(event)
+        if new_url:
+            Event.objects.filter(pk=event.pk).update(google_form_url=new_url)
+            count += 1
+    modeladmin.message_user(request, f"Form URLs refreshed for {count} event(s).", messages.SUCCESS)
 
-regenerate_qr_codes.short_description = "Regenerate QR codes (point to Google Form)"
+regenerate_form_urls.short_description = "Refresh pre-filled Google Form URLs"
 
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
     list_display  = ("title", "location", "start_date", "form_response_count", "capacity")
-    actions       = [regenerate_qr_codes]
-    readonly_fields = ("qr_code", "form_response_count")
+    actions       = [regenerate_form_urls]
+    readonly_fields = ("form_response_count",)
 
 
 @admin.register(FormResponse)
@@ -33,6 +31,15 @@ class FormResponseAdmin(admin.ModelAdmin):
     search_fields = ("respondent_name", "respondent_email", "respondent_phone")
     readonly_fields = ("submitted_at", "raw_data")
     ordering      = ("-submitted_at",)
+
+
+@admin.register(EventCheckIn)
+class EventCheckInAdmin(admin.ModelAdmin):
+    list_display  = ("event", "participant", "checked_in_at", "distance_meters")
+    list_filter   = ("event",)
+    search_fields = ("participant__username", "participant__first_name", "participant__last_name")
+    readonly_fields = ("checked_in_at", "latitude", "longitude", "distance_meters")
+    ordering      = ("-checked_in_at",)
 
 
 admin.site.register(EventRegistration)

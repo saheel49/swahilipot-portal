@@ -46,10 +46,9 @@ def home(request):
             "url": f"/events/{e.pk}/",
         })
 
-    # Event scans: sum form_response_count across all active (not yet ended) events
-    event_scans_today = (
+    # Total registrations across ALL events (replaces the old "QR scans" counter)
+    total_event_registrations = (
         Event.objects
-        .filter(end_date__gte=timezone.now())
         .aggregate(total=db_Sum("form_response_count"))["total"] or 0
     )
 
@@ -68,7 +67,7 @@ def home(request):
         "not_checked_in": User.objects.filter(is_active=True).exclude(
             attendance_records__check_in_time__date=today
         ).count(),
-        "event_scans_today": event_scans_today,
+        "total_event_registrations": total_event_registrations,
         "task_status": list(visible_tasks.values("status").annotate(count=Count("id"))),
         "task_status_total": max(visible_tasks.values("status").annotate(count=Count("id")).aggregate(t=Count("id"))["t"] or 1, 1),
         "suggestion_categories": list(Suggestion.objects.values("category").annotate(count=Count("id"))),
@@ -88,13 +87,14 @@ def home(request):
 def live_stats(request):
     """Lightweight JSON endpoint polled by the dashboard every 15 s.
     No @login_required so it works from any tab including unauthenticated scans.
+    Also runs stale-session cleanup so 'Currently In' stays accurate without
+    requiring a visit to the attendance page.
     """
+    from attendance.views import auto_checkout_stale_sessions
+    auto_checkout_stale_sessions()
     today = timezone.localdate()
-    # Sum QR scans across ALL non-past events — removes date-filter bugs where
-    # timezone mismatches or past end_dates cause the count to show 0.
-    event_scans_today = (
+    total_event_registrations = (
         Event.objects
-        .filter(end_date__gte=timezone.now())
         .aggregate(total=db_Sum("form_response_count"))["total"] or 0
     )
     return JsonResponse({
@@ -107,7 +107,7 @@ def live_stats(request):
             check_in_time__date=today,
             arrival_status=Attendance.ArrivalStatus.LATE,
         ).count(),
-        "event_scans_today": event_scans_today,
+        "total_event_registrations": total_event_registrations,
     })
 
 
@@ -154,7 +154,23 @@ def filtered_dates(request, qs, field):
 
 @capability_required("can_view_reports")
 def reports(request):
-    return render(request, "dashboard/reports.html")
+    from events.models import Event, EventRegistration, EventCheckIn
+    from accounts.models import User as _User
+    total_portal = _User.objects.filter(is_active=True).count()
+    events_data = []
+    for e in Event.objects.order_by("-start_date"):
+        reg   = EventRegistration.objects.filter(event=e).count()
+        att   = EventCheckIn.objects.filter(event=e).count()
+        ns    = max(reg - att, 0)
+        not_r = max(total_portal - reg, 0)
+        events_data.append({
+            "event":      e,
+            "registered": reg,
+            "attended":   att,
+            "no_show":    ns,
+            "not_reg":    not_r,
+        })
+    return render(request, "dashboard/reports.html", {"events_data": events_data})
 
 
 @login_required
@@ -227,9 +243,22 @@ def report_download(request, kind, fmt):
             for t in qs
         ]
     elif kind == "events":
+        from events.models import EventRegistration, EventCheckIn
         qs = filtered_dates(request, Event.objects.all(), "start_date")
-        headers = ["Title", "Location", "Start", "Registrations", "Attendance"]
-        rows = [[e.title, e.location, e.start_date, e.registration_count(), e.attendance_count()] for e in qs]
+        headers = ["Title", "Location", "Start Date", "Capacity", "Registered", "Attended", "No-Shows", "Not Registered"]
+        from accounts.models import User as _User
+        total_portal = _User.objects.filter(is_active=True).count()
+        rows = []
+        for e in qs:
+            reg   = EventRegistration.objects.filter(event=e).count()
+            att   = EventCheckIn.objects.filter(event=e).count()
+            ns    = max(reg - att, 0)
+            not_r = max(total_portal - reg, 0)
+            rows.append([
+                e.title, e.location,
+                e.start_date.strftime("%d %b %Y") if hasattr(e.start_date, "strftime") else str(e.start_date),
+                e.capacity, reg, att, ns, not_r,
+            ])
     elif kind == "location_timeout":
         from attendance.models import LocationLog
         qs = LocationLog.objects.select_related("user").order_by("-turned_off_at")

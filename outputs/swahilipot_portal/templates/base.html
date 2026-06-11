@@ -75,6 +75,17 @@
     <a href="{% url 'dashboard:home' %}"><i class="bi bi-speedometer2"></i> Dashboard</a>
     <a href="{% url 'attendance:home' %}"><i class="bi bi-geo-alt"></i> Attendance</a>
     <a href="{% url 'attendance:my_location_timeout' %}"><i class="bi bi-clock-history"></i> Location Timeout</a>
+    {% if user.can_monitor_attendance %}
+    <a href="{% url 'attendance:missed_checkout' %}"><i class="bi bi-door-open"></i> Missed Checkout</a>
+    <a href="{% url 'attendance:location_activity' %}"
+       style="padding-left:2.2rem;font-size:.85rem;opacity:.9"
+       id="sidebar-loc-activity">
+      <i class="bi bi-broadcast text-warning"></i> Location Activity
+      <span id="sidebar-loc-off-count"
+            class="badge bg-danger ms-1"
+            style="display:none;font-size:.6rem"></span>
+    </a>
+    {% endif %}
 
     {% if user.is_portal_admin %}
     <a href="{% url 'attendance:sites' %}"><i class="bi bi-pin-map"></i> Project Sites</a>
@@ -88,6 +99,14 @@
     <a href="{% url 'tasks:list' %}"><i class="bi bi-check2-square"></i> Tasks</a>
     <a href="{% url 'dashboard:reminders' %}"><i class="bi bi-calendar-check"></i> Reminders</a>
     <a href="{% url 'events:list' %}"><i class="bi bi-calendar-event"></i> Events</a>
+    {% if user.can_manage_events %}
+    <a href="{% url 'events:all_no_shows' %}" style="padding-left:2.2rem;font-size:.85rem;opacity:.9">
+      <i class="bi bi-person-x"></i> No-Shows
+    </a>
+    <a href="{% url 'events:all_no_shows' %}" style="padding-left:2.2rem;font-size:.85rem;opacity:.9">
+      <i class="bi bi-person-slash"></i> Not Registered
+    </a>
+    {% endif %}
     <a href="{% url 'communication:home' %}"><i class="bi bi-chat-dots"></i> Communication</a>
     <a href="{% url 'suggestions:list' %}"><i class="bi bi-lightbulb"></i> Suggestions</a>
 
@@ -141,51 +160,110 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="{% static 'js/notification_sounds.js' %}"></script>
 <script>
-// Live notification badge refresh — polls every 60s for logged-in users
-// Plays a sound when new notifications arrive, based on highest priority received.
+// ── Live notification badge + sound — polls every 30 s ───────────────────
 (function() {
-  var badge = document.querySelector('.badge.rounded-pill.text-bg-warning');
   var bellLink = document.querySelector('a[href*="notifications"]');
   if (!bellLink) return;
 
-  var lastTotal = -1;
+  // Track previous unread count to detect new arrivals
+  // Seed from the server-rendered badge so we don't false-alarm on first load
+  var existingBadge = bellLink.querySelector('.badge');
+  var lastUnread = existingBadge ? parseInt(existingBadge.textContent, 10) || 0 : 0;
+  var firstPoll  = true;   // skip sound on the very first fetch (page load)
 
   function refreshBadge() {
     fetch('{% url "communication:notifications" %}', {
       headers: { 'X-Requested-With': 'XMLHttpRequest' }
     })
-    .then(function(r) { return r.json(); })
+    .then(function(r) { return r.ok ? r.json() : null; })
     .then(function(data) {
-      var existing = bellLink.querySelector('.badge');
+      if (!data) return;
+
+      // ── Update badge ──────────────────────────────────────────────────
+      var badge = bellLink.querySelector('.badge');
       if (data.unread > 0) {
-        if (existing) {
-          existing.textContent = data.unread;
+        if (badge) {
+          badge.textContent = data.unread;
         } else {
-          var b = document.createElement('span');
-          b.className = 'badge rounded-pill text-bg-warning';
-          b.textContent = data.unread;
-          bellLink.appendChild(b);
+          badge = document.createElement('span');
+          badge.className = 'badge rounded-pill text-bg-warning';
+          badge.textContent = data.unread;
+          bellLink.appendChild(badge);
         }
       } else {
-        if (existing) existing.remove();
+        if (badge) badge.remove();
       }
-      // Play sound if new notifications arrived since last poll
-      if (lastTotal >= 0 && data.total > lastTotal && window.portalSound) {
-        // Use "medium" for new general notifications
-        window.portalSound.play(data.highest_priority || "medium");
+
+      // ── Play sound only when NEW unread notifications arrive ──────────
+      if (!firstPoll && data.unread > lastUnread && window.portalSound) {
+        window.portalSound.play(data.highest_priority || 'medium');
       }
-      lastTotal = data.total;
+      firstPoll  = false;
+      lastUnread = data.unread;
     })
     .catch(function() {});
   }
 
-  // Poll every 60 seconds
-  setTimeout(function poll() { refreshBadge(); setTimeout(poll, 60000); }, 5000);
+  // First poll after 3 s (page settle), then every 30 s
+  setTimeout(function poll() { refreshBadge(); setTimeout(poll, 30000); }, 3000);
 })();
 </script>
-{% block scripts %}{% endblock %}
+
+{% if user.can_monitor_attendance %}
 <script>
-// ── Sidebar scroll button removed — native scrollbar is used ────────────────
+// ── Location Activity sidebar badge — shows who has location off ──────────
+(function () {
+  var badge   = document.getElementById('sidebar-loc-off-count');
+  var link    = document.getElementById('sidebar-loc-activity');
+  if (!badge || !link) return;
+
+  function refreshLocBadge() {
+    fetch('{% url "attendance:location_off_status" %}', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (data) {
+      if (!data) return;
+      if (data.count > 0) {
+        badge.textContent = data.count;
+        badge.style.display = 'inline-block';
+        // Build tooltip: list each name and time off
+        var tip = data.users.map(function (u) {
+          return u.name + ' (off since ' + u.off_since + ')';
+        }).join('\n');
+        link.title = '⚠ Location off:\n' + tip;
+      } else {
+        badge.style.display = 'none';
+        link.title = '';
+      }
+    })
+    .catch(function () {});
+  }
+
+  refreshLocBadge();
+  setInterval(refreshLocBadge, 30000);
+})();
 </script>
+{% endif %}
+{% block scripts %}{% endblock %}
+{% if user.is_authenticated %}
+<script>
+// ── Sitewide location monitoring (geofence.js) ────────────────────────────
+// Runs on EVERY authenticated page so location on/off is detected immediately,
+// regardless of which page the user is on.
+// portalCheckedIn=false means no geofence ping loop; only location alive-check.
+if (typeof window.portalCheckedIn === 'undefined') {
+  window.portalCheckedIn  = false;
+}
+if (typeof window.geofencePingUrl === 'undefined') {
+  window.geofencePingUrl  = "{% url 'attendance:geofence_ping' %}";
+}
+if (typeof window.locationStatusUrl === 'undefined') {
+  window.locationStatusUrl = "{% url 'attendance:location_status' %}";
+}
+if (typeof window.csrfToken === 'undefined') {
+  window.csrfToken = "{{ csrf_token }}";
+}
+</script>
+<script src="{% static 'js/geofence.js' %}"></script>
+{% endif %}
 </body>
 </html>

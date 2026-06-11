@@ -1,210 +1,210 @@
 /**
- * geofence.js — SAH-VisionDevs
+ * geofence.js — Swahilipot Hub Portal
  *
- * Polls the user's GPS position every 60 seconds while they are checked in.
- * If they leave the allowed site radius it:
- *   1. Shows a prominent on-screen warning banner
- *   2. POSTs to /attendance/geofence-ping/ which:
- *      - Records a GeofenceViolation in the database
- *      - Sends an in-app notification to the user (CRITICAL priority)
- *      - Sends in-app alerts to all admins / program managers (CRITICAL priority)
- *   3. Plays a CRITICAL-level notification sound
+ * Runs on every authenticated page via base.html.
  *
- * Location on/off tracking:
- *   - Watches for geolocation permission changes via the Permissions API
- *   - If location permission is revoked, reports to /attendance/location-status/
- *     and notifies both the user and management (HIGH priority sound + notification)
- *   - When permission is restored, reports on again (MEDIUM priority)
+ * WHAT IT DOES:
+ *  1. Checks location status every 5 seconds (no page refresh needed).
+ *  2. When location turns OFF:
+ *       - Plays a distinct "location off" descending sound.
+ *       - Reports to /attendance/location-status/ → creates LocationLog.
+ *  3. When location turns back ON:
+ *       - Plays a distinct "location on" ascending sound.
+ *       - Reports to server → closes the open LocationLog (sets turned_on_at).
+ *  4. When attendance-checked-in: also pings the geofence endpoint every 60 s.
+ *  5. Shows on-screen status on the attendance home page.
  */
 
 (function () {
   "use strict";
 
-  const PING_INTERVAL_MS = 60_000; // 60 s
-  const checkedIn  = window.portalCheckedIn === true;
-  const pingUrl    = window.geofencePingUrl;
-  const csrf       = window.csrfToken;
+  const LOCATION_CHECK_MS = 5_000;   // check location every 5 seconds
+  const PING_INTERVAL_MS  = 15_000;  // geofence server ping every 15 s (was 60 s — faster detection while walking)
+
+  const checkedIn         = window.portalCheckedIn === true;
+  const pingUrl           = window.geofencePingUrl  || "";
   const locationStatusUrl = window.locationStatusUrl || "";
+  const csrf              = window.csrfToken || "";
 
-  if (!pingUrl || !navigator.geolocation) return;
+  if (!navigator.geolocation) return;
 
+  // ── DOM refs — only present on attendance home page ──────────────────────
   const statusBox = document.getElementById("geofenceStatus");
   const gfText    = document.getElementById("gfText");
   const gfSpinner = document.getElementById("gfSpinner");
 
-  // ── Status UI helpers ────────────────────────────────────────────────────
+  // ── State ─────────────────────────────────────────────────────────────────
+  let _isOff          = false;  // true = location is currently off
+  let _reportedOff    = false;  // sent "off" to server for this cycle
+  let _reportedOn     = false;  // sent "on" to server for this cycle (resets when off again)
 
-  function setStatus(inside, distance, radius) {
-    if (!statusBox) return;
-    if (inside) {
-      statusBox.className = "alert alert-success py-2 px-3 mb-3 d-flex align-items-center gap-2";
-      gfSpinner.className  = "bi bi-geo-alt-fill text-success fs-5";
-      gfText.innerHTML     =
-        `<strong>Inside site perimeter</strong> — You are ${distance} m from the site centre (radius: ${radius} m).`;
-    } else {
-      statusBox.className = "alert alert-danger py-2 px-3 mb-3 d-flex align-items-center gap-2 border border-danger border-2";
-      gfSpinner.className  = "bi bi-exclamation-triangle-fill text-danger fs-5";
-      gfText.innerHTML     =
-        `<strong>⚠ Outside site perimeter!</strong> You are <strong>${distance} m</strong> away (allowed: ${radius} m). ` +
-        `A violation has been recorded and management has been notified. Please return to the site or check out.`;
-      showOutsideBanner(distance, radius);
-      // Critical sound for geofence breach
-      if (window.portalSound) window.portalSound.play("critical");
-    }
-  }
+  // ── UI helpers (silently no-op when not on attendance page) ──────────────
 
   function setWaiting() {
     if (!statusBox) return;
     statusBox.className = "alert alert-info py-2 px-3 mb-3 d-flex align-items-center gap-2";
     if (gfSpinner) gfSpinner.className = "spinner-grow spinner-grow-sm text-info";
-    if (gfText)    gfText.innerHTML    = "<strong>Location monitoring active</strong> — acquiring GPS…";
+    if (gfText) gfText.innerHTML = "<strong>Location monitoring active</strong> — acquiring GPS…";
   }
 
-  function setError(msg) {
+  function setInsideSite(distance, radius) {
     if (!statusBox) return;
-    statusBox.className = "alert alert-warning py-2 px-3 mb-3 d-flex align-items-center gap-2";
-    if (gfSpinner) gfSpinner.className = "bi bi-wifi-off text-warning fs-5";
-    if (gfText)    gfText.innerHTML    = `<strong>Location unavailable:</strong> ${msg}`;
+    statusBox.className = "alert alert-success py-2 px-3 mb-3 d-flex align-items-center gap-2";
+    if (gfSpinner) gfSpinner.className = "bi bi-geo-alt-fill text-success fs-5";
+    if (gfText) gfText.innerHTML =
+      `<strong>Inside site perimeter</strong> — ${distance} m from centre (radius: ${radius} m).`;
+  }
+
+  function setOutsideSite(distance, radius) {
+    if (!statusBox) return;
+    statusBox.className = "alert alert-danger py-2 px-3 mb-3 d-flex align-items-center gap-2 border border-danger border-2";
+    if (gfSpinner) gfSpinner.className = "bi bi-exclamation-triangle-fill text-danger fs-5";
+    if (gfText) gfText.innerHTML =
+      `<strong>⚠ Outside perimeter!</strong> You are <strong>${distance} m</strong> away ` +
+      `(allowed: ${radius} m). A violation has been recorded.`;
+    showOutsideBanner(distance, radius);
+    if (window.portalSound) window.portalSound.play("critical");
   }
 
   function setLocationOff() {
     if (!statusBox) return;
     statusBox.className = "alert alert-danger py-2 px-3 mb-3 d-flex align-items-center gap-2";
-    if (gfSpinner) gfSpinner.className = "bi bi-geo-alt-fill text-danger fs-5";
-    if (gfText)    gfText.innerHTML    =
-      "<strong>⚠ Location Turned Off</strong> — GPS monitoring is inactive. " +
-      "Re-enable location permissions to resume attendance tracking.";
-    // High-priority sound for location off
-    if (window.portalSound) window.portalSound.play("high");
+    if (gfSpinner) gfSpinner.className = "bi bi-geo-alt-slash text-danger fs-5";
+    if (gfText) gfText.innerHTML =
+      "<strong>📵 Location Turned Off</strong> — GPS monitoring paused. " +
+      "Re-enable location to continue attendance tracking.";
   }
 
-  /** Show a full-screen dismissible warning banner when the user is outside */
   function showOutsideBanner(distance, radius) {
-    if (document.getElementById("gfBanner")) return; // already visible
-    const banner = document.createElement("div");
-    banner.id = "gfBanner";
-    banner.style.cssText =
+    if (document.getElementById("gfBanner")) return;
+    const b = document.createElement("div");
+    b.id = "gfBanner";
+    b.style.cssText =
       "position:fixed;top:0;left:0;right:0;z-index:9999;background:#dc3545;color:#fff;" +
       "padding:14px 20px;display:flex;align-items:center;justify-content:space-between;" +
       "font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.4);";
-    banner.innerHTML =
-      `<span>⚠ You have left the site perimeter (${distance} m away, allowed ${radius} m). ` +
-      `Management has been alerted. Please return or check out.</span>` +
+    b.innerHTML =
+      `<span>⚠ You have left the site perimeter (${distance} m away, max ${radius} m). ` +
+      `Management has been alerted.</span>` +
       `<button onclick="document.getElementById('gfBanner').remove()" ` +
-      `style="background:transparent;border:2px solid #fff;color:#fff;border-radius:4px;padding:4px 12px;cursor:pointer;font-weight:700;">Dismiss</button>`;
-    document.body.prepend(banner);
+      `style="background:none;border:2px solid #fff;color:#fff;border-radius:4px;` +
+      `padding:4px 12px;cursor:pointer;font-weight:700;">Dismiss</button>`;
+    document.body.prepend(b);
   }
 
-  // ── Location on/off reporting ─────────────────────────────────────────────
+  // ── Server reporting ──────────────────────────────────────────────────────
 
-  /**
-   * Report location status change to the server.
-   * @param {"on"|"off"} status
-   */
-  function reportLocationStatus(status) {
+  function reportStatus(status) {
     if (!locationStatusUrl || !csrf) return;
     fetch(locationStatusUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRFToken": csrf,
-      },
-      body: JSON.stringify({ status: status }),
-    }).catch(function (e) {
-      console.warn("Location status report failed:", e);
-    });
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+      body: JSON.stringify({ status }),
+    }).catch(() => {});
   }
 
-  // Track previous permission state to avoid duplicate reports
-  let _lastPermissionState = null;
+  // ── On location turning OFF ───────────────────────────────────────────────
+  function handleLocationOff(reason) {
+    if (_reportedOff) return; // already reported this off-cycle
+    _reportedOff = true;
+    _reportedOn  = false;
+    _isOff       = true;
+    setLocationOff();
+    if (window.portalSound) window.portalSound.play("location_off");
+    reportStatus("off");
+    console.info("[Geofence] Location OFF —", reason);
+  }
 
-  /**
-   * Watch for permission changes using the Permissions API.
-   * This fires when the user explicitly revokes or grants location permission.
-   */
+  // ── On location turning ON ────────────────────────────────────────────────
+  function handleLocationOn() {
+    if (!_reportedOff) return; // never went off — nothing to restore
+    if (_reportedOn)   return; // already sent "on" for this cycle
+    _reportedOn  = true;
+    _reportedOff = false;
+    _isOff       = false;
+    if (window.portalSound) window.portalSound.play("location_on");
+    reportStatus("on");
+    console.info("[Geofence] Location ON — restored.");
+    if (checkedIn && pingUrl) doGeofencePing(); // immediate geofence check
+  }
+
+  // ── Permissions API — catches browser-level permission toggle ────────────
   if (navigator.permissions && navigator.permissions.query) {
-    navigator.permissions.query({ name: "geolocation" }).then(function (permStatus) {
-      _lastPermissionState = permStatus.state;
-
-      permStatus.onchange = function () {
-        const newState = permStatus.state;
-        if (newState === _lastPermissionState) return;
-        _lastPermissionState = newState;
-
-        if (newState === "denied" || newState === "prompt") {
-          // Location turned off or permission revoked
-          setLocationOff();
-          reportLocationStatus("off");
-        } else if (newState === "granted") {
-          // Location turned back on
-          if (window.portalSound) window.portalSound.play("medium");
-          reportLocationStatus("on");
-          // Resume pinging
-          doGPSPing();
+    navigator.permissions.query({ name: "geolocation" }).then(function (perm) {
+      perm.onchange = function () {
+        if (perm.state === "denied" || perm.state === "prompt") {
+          handleLocationOff("permission-revoked");
+        } else if (perm.state === "granted") {
+          handleLocationOn();
         }
       };
-    }).catch(function () {
-      // Permissions API not supported fully — silent fail
-    });
+    }).catch(() => {});
   }
 
-  // ── Geofence ping ────────────────────────────────────────────────────────
-
-  async function ping(lat, lng) {
+  // ── Geofence server ping ──────────────────────────────────────────────────
+  async function pingGeofenceServer(lat, lng) {
+    if (!pingUrl || !csrf) return;
     try {
-      const resp = await fetch(pingUrl, {
+      const r = await fetch(pingUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": csrf,
-        },
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
         body: JSON.stringify({ latitude: lat, longitude: lng }),
       });
-      if (!resp.ok) return;
-      const data = await resp.json();
-      if (!data.checked_in) return; // session ended server-side
-      setStatus(data.inside, data.distance, data.radius || (window.portalSite && window.portalSite.radius));
+      if (!r.ok) return;
+      const data = await r.json();
+      if (!data.checked_in) return;
+      const radius = data.radius || (window.portalSite && window.portalSite.radius) || 100;
+      if (data.inside) {
+        setInsideSite(data.distance, radius);
+      } else {
+        setOutsideSite(data.distance, radius);
+      }
     } catch (e) {
-      // Network error — don't surface to user
-      console.warn("Geofence ping failed:", e);
+      console.warn("[Geofence] ping failed:", e);
     }
   }
 
-  function doGPSPing() {
+  function doGeofencePing() {
     setWaiting();
     navigator.geolocation.getCurrentPosition(
       function (pos) {
-        // If we were previously reported as "off", report back on
-        if (_lastPermissionState === "denied") {
-          reportLocationStatus("on");
-          if (window.portalSound) window.portalSound.play("medium");
-        }
-        _lastPermissionState = "granted";
-        ping(pos.coords.latitude, pos.coords.longitude);
+        handleLocationOn();
+        pingGeofenceServer(pos.coords.latitude, pos.coords.longitude);
       },
       function (err) {
-        if (err.code === err.PERMISSION_DENIED) {
-          // Location was denied — report off if not already reported
-          if (_lastPermissionState !== "denied") {
-            _lastPermissionState = "denied";
-            setLocationOff();
-            reportLocationStatus("off");
-          } else {
-            setError("Location permission denied");
-          }
-        } else {
-          setError(err.message || "GPS error");
-        }
+        if (err.code === err.PERMISSION_DENIED)         handleLocationOff("permission-denied");
+        else if (err.code === err.POSITION_UNAVAILABLE) handleLocationOff("position-unavailable");
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }  // maximumAge:0 → always fresh GPS
     );
   }
 
-  // Only run geofence pings when the user is checked in
-  if (checkedIn) {
-    // First ping after a short delay, then every 60 s
-    setTimeout(doGPSPing, 3000);
-    setInterval(doGPSPing, PING_INTERVAL_MS);
+  // ── 5-second location check — runs on ALL pages ───────────────────────────
+  function checkLocationStatus() {
+    navigator.geolocation.getCurrentPosition(
+      function () { handleLocationOn(); },
+      function (err) {
+        if (err.code === err.PERMISSION_DENIED || err.code === err.POSITION_UNAVAILABLE) {
+          handleLocationOff(
+            err.code === err.PERMISSION_DENIED ? "permission-denied" : "gps-off"
+          );
+        }
+        // TIMEOUT (code 3) → GPS just slow, not off — ignore
+      },
+      { enableHighAccuracy: false, timeout: 4000, maximumAge: 0 }  // maximumAge:0 → always fresh
+    );
+  }
+
+  // ── Start ─────────────────────────────────────────────────────────────────
+
+  // 5-second location check on every page
+  setTimeout(checkLocationStatus, 2000); // first check after 2 s
+  setInterval(checkLocationStatus, LOCATION_CHECK_MS);
+
+  // 60-second geofence ping only when attendance-checked-in
+  if (checkedIn && pingUrl) {
+    setTimeout(doGeofencePing, 5000);
+    setInterval(doGeofencePing, PING_INTERVAL_MS);
   }
 
 })();

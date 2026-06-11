@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-door-open me-2 text-warning"></i>Missed Checkout</h1>
+    <p class="text-muted small mb-0">{{ filter_description }}</p>
+  </div>
+  <a href="{% url 'dashboard:home' %}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Back
+  </a>
+</div>
+
+<!-- Summary card -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-lg-3">
+    <div class="panel text-center py-3">
+      <div style="font-size:2rem;font-weight:800;color:#f59e0b">{{ monthly_count }}</div>
+      <div class="text-muted small">Auto-checkouts this month</div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="panel text-center py-3">
+      <div style="font-size:2rem;font-weight:800;color:#dc2626">{{ total_count }}</div>
+      <div class="text-muted small">All-time auto-checkouts</div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="panel text-center py-3">
+      <div style="font-size:2rem;font-weight:800;color:#1e40af">{{ records|length }}</div>
+      <div class="text-muted small">Records shown</div>
+    </div>
+  </div>
+</div>
+
+<!-- Download buttons -->
+<div class="d-flex gap-2 mb-3">
+  <a href="{% url 'attendance:missed_checkout_report' 'pdf' %}" class="btn btn-outline-danger btn-sm">
+    <i class="bi bi-file-earmark-pdf me-1"></i>Download PDF
+  </a>
+  <a href="{% url 'attendance:missed_checkout_report' 'xlsx' %}" class="btn btn-outline-success btn-sm">
+    <i class="bi bi-file-earmark-spreadsheet me-1"></i>Download Excel
+  </a>
+</div>
+
+<div class="panel">
+  {% if records %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" style="font-size:.88rem">
+      <thead style="background:#fefce8">
+        <tr>
+          <th>Staff Member</th>
+          <th>Date</th>
+          <th>Check In</th>
+          <th>Auto Check-Out</th>
+          <th>Hours</th>
+          <th>Arrival</th>
+          <th>Site</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rec in records %}
+        <tr>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              {% if rec.user.profile_photo %}
+              <img src="{{ rec.user.profile_photo.url }}" alt="{{ rec.user }}"
+                   style="width:32px;height:32px;border-radius:50%;object-fit:cover">
+              {% else %}
+              <span style="width:32px;height:32px;border-radius:50%;background:#fef3c7;color:#92400e;
+                           display:inline-flex;align-items:center;justify-content:center;font-size:.85rem">
+                <i class="bi bi-person-fill"></i>
+              </span>
+              {% endif %}
+              <div>
+                <div class="fw-semibold">{{ rec.user.get_full_name|default:rec.user.username }}</div>
+                <div class="text-muted" style="font-size:.75rem">{{ rec.user.email }}</div>
+              </div>
+            </div>
+          </td>
+          <td class="text-muted small">{{ rec.check_in_time|date:"d M Y" }}</td>
+          <td><span class="fw-semibold">{{ rec.check_in_time|date:"H:i" }}</span></td>
+          <td>
+            {% if rec.check_out_time %}
+            <span class="fw-semibold text-warning">{{ rec.check_out_time|date:"H:i" }}</span>
+            <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem">Auto</span>
+            {% else %}
+            <span class="badge bg-success">Active</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if rec.total_hours %}
+            <span class="hours-badge">{{ rec.total_hours|floatformat:2 }}h</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if rec.arrival_status %}
+            <span class="status-chip {{ rec.arrival_status }}">{{ rec.get_arrival_status_display }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-muted small">{{ rec.project_site.name }}</td>
+          <td>
+            <span class="badge {% if rec.status == 'checked_in' %}bg-success{% else %}bg-secondary{% endif %}">
+              {% if rec.status == "checked_in" %}Active{% else %}Closed{% endif %}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="mt-3 text-muted small">
+    <i class="bi bi-people me-1"></i>{{ records|length }} record{{ records|length|pluralize }} shown
+  </div>
+  {% else %}
+  <div class="empty-state text-center py-4">
+    <i class="bi bi-check-circle fs-2 text-success"></i>
+    <p class="text-muted mt-2">No missed checkouts found. Everyone is checking out properly!</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

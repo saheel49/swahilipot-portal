@@ -487,7 +487,7 @@
         <a href="https://www.swahilipotfm.co.ke" target="_blank" class="radio-site-link" title="Open full site">
           <i class="bi bi-box-arrow-up-right"></i>
         </a>
-        <button class="radio-toggle-btn" id="radioToggleBtn" onclick="toggleRadioPanel()" title="Show / Hide player">
+        <button class="radio-toggle-btn" id="radioToggleBtn" title="Show / Hide player">
           <i class="bi bi-chevron-down" id="radioChevron"></i>
         </button>
       </div>
@@ -562,46 +562,53 @@ setInterval(function() { goTo(current + 1); }, 5000);
   var open    = false;
   var loaded  = false;
 
+  function openPanel() {
+    open   = true;
+    loaded = true;
+    wrap.style.display    = "block";
+    chevron.className     = "bi bi-chevron-up";
+    loading.style.display = "flex";
+    iframe.style.display  = "none";
+    downMsg.style.display = "none";
+
+    iframe.src = iframe.dataset.src;
+
+    var timer = setTimeout(function () {
+      if (iframe.style.display === "none") {
+        loading.style.display = "none";
+        downMsg.style.display = "flex";
+      }
+    }, 8000);
+
+    iframe.onload = function () {
+      clearTimeout(timer);
+      loading.style.display = "none";
+      downMsg.style.display  = "none";
+      iframe.style.display   = "block";
+    };
+    iframe.onerror = function () {
+      clearTimeout(timer);
+      loading.style.display = "none";
+      downMsg.style.display  = "flex";
+      iframe.style.display   = "none";
+    };
+  }
+
   window.toggleRadioPanel = function () {
-    open = !open;
-    wrap.style.display = open ? "block" : "none";
-    chevron.className  = open ? "bi bi-chevron-up" : "bi bi-chevron-down";
-
-    if (open && !loaded) {
-      loaded = true;
-      loading.style.display = "flex";
-      iframe.style.display  = "none";
-      downMsg.style.display = "none";
-
-      // Load the iframe on first open
-      iframe.src = iframe.dataset.src;
-
-      // Timeout: if iframe doesn't load in 8 s, show "radio down"
-      var timer = setTimeout(function () {
-        if (iframe.style.display === "none") {
-          loading.style.display = "none";
-          downMsg.style.display = "flex";
-        }
-      }, 8000);
-
-      iframe.onload = function () {
-        clearTimeout(timer);
-        loading.style.display = "none";
-        downMsg.style.display  = "none";
-        iframe.style.display   = "block";
-      };
-
-      iframe.onerror = function () {
-        clearTimeout(timer);
-        loading.style.display = "none";
-        downMsg.style.display  = "flex";
-        iframe.style.display   = "none";
-      };
+    if (!open) {
+      openPanel();
+    } else {
+      open = false;
+      wrap.style.display = "none";
+      chevron.className  = "bi bi-chevron-down";
     }
   };
 
-  // Make the header row clickable too
+  // Make the full header row clickable
   document.querySelector(".radio-header").addEventListener("click", toggleRadioPanel);
+
+  // Auto-open after 1 s so user sees it right away
+  setTimeout(openPanel, 1000);
 })();
 </script>
 </body>

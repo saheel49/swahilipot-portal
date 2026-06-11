@@ -110,20 +110,22 @@ def auto_checkout_stale_sessions():
             continue  # Still within the grace window — don't close yet
 
         # ── Close the session ──────────────────────────────────────────────
-        close_time   = expected_checkout
-        duration     = close_time - record.check_in_time
+        close_time   = expected_checkout + timedelta(minutes=site.grace_minutes)
+        # Record at the actual expected checkout (not grace end) for accurate hours
+        record_close_time = expected_checkout
+        duration     = record_close_time - record.check_in_time
         total_hours  = Decimal(str(round(max(duration.total_seconds(), 0) / 3600, 2)))
 
-        record.check_out_time      = close_time
+        record.check_out_time      = record_close_time
         record.check_out_latitude  = record.check_in_latitude
         record.check_out_longitude = record.check_in_longitude
         record.total_hours         = total_hours
-        record.departure_status    = Attendance.DepartureStatus.ON_TIME
+        record.departure_status    = Attendance.DepartureStatus.LEFT_EARLY  # missed checkout = left early
         record.status              = Attendance.Status.CHECKED_OUT
         record.save()
 
         user_name    = record.user.get_full_name() or record.user.username
-        close_str    = timezone.localtime(close_time).strftime("%H:%M")
+        close_str    = timezone.localtime(record_close_time).strftime("%H:%M")
         date_str     = check_in_local.strftime("%d %b %Y")
         checkin_str  = check_in_local.strftime("%H:%M")
         deadline_str = (
@@ -193,14 +195,45 @@ def attendance_home(request):
         status=Attendance.Status.CHECKED_OUT,
     ).exists()
     sites = list(active_sites())
+
+    # ── Active event venue hint ───────────────────────────────────────────
+    # If the user is registered for an event happening today, find which
+    # project site is required so we can highlight it in the template.
+    from events.models import EventRegistration
+    from attendance.utils import haversine_distance_meters as _hav
+    now_dt = timezone.now()
+    event_reg = (
+        EventRegistration.objects
+        .filter(
+            participant=request.user,
+            event__start_date__date__lte=today,
+            event__end_date__gte=now_dt,
+        )
+        .select_related("event")
+        .first()
+    )
+    required_site = None
+    active_event = None
+    if event_reg and event_reg.event.venue_latitude and event_reg.event.venue_longitude:
+        active_event = event_reg.event
+        for ps in ProjectSite.objects.all():
+            d = _hav(
+                float(active_event.venue_latitude), float(active_event.venue_longitude),
+                float(ps.latitude), float(ps.longitude),
+            )
+            if d < 5:
+                required_site = ps
+                break
+
     return render(request, "attendance/home.html", {
         "records": records,
         "current": current,
         "hours_today": hours,
-        # Keep `site` for backward compat with templates that show a single site
         "site": sites[0] if len(sites) == 1 else (current.project_site if current else None),
         "active_sites": sites,
         "already_done_today": already_done_today,
+        "active_event":   active_event,    # event happening today (user is registered)
+        "required_site":  required_site,   # the site the event requires
     })
 
 
@@ -277,22 +310,79 @@ def check_in(request):
     except (KeyError, Exception):
         messages.error(request, "Location data missing. Please allow location access.")
         return redirect("attendance:home")
+
+    # ── Event venue validation ────────────────────────────────────────────
+    # If the user is registered for an active event today, verify they are
+    # checking in at the correct venue site the admin set for that event.
+    from events.models import EventRegistration
+    from attendance.utils import haversine_distance_meters
+    now_dt = timezone.now()
+    active_event_reg = (
+        EventRegistration.objects
+        .filter(
+            participant=request.user,
+            event__start_date__date__lte=today,
+            event__end_date__gte=now_dt,
+        )
+        .select_related("event")
+        .first()
+    )
+    if active_event_reg:
+        event = active_event_reg.event
+        if event.venue_latitude and event.venue_longitude:
+            # Find the ProjectSite that matches this event's venue coordinates
+            # (tolerance: 1 m, since they were set from the site object itself)
+            event_site = None
+            for ps in ProjectSite.objects.all():
+                d = haversine_distance_meters(
+                    float(event.venue_latitude), float(event.venue_longitude),
+                    float(ps.latitude), float(ps.longitude),
+                )
+                if d < 5:   # within 5 m → same site
+                    event_site = ps
+                    break
+
+            if event_site and event_site.pk != site.pk:
+                messages.error(
+                    request,
+                    f'Wrong site! The event "{event.title}" requires check-in at '
+                    f'"{event_site.name}", but you selected "{site.name}". '
+                    f'Please choose "{event_site.name}" and try again.',
+                )
+                return redirect("attendance:home")
+
     ok, distance = inside_site(lat, lng, site)
     if not ok:
         messages.error(request, f"You are {distance:.0f} m from the site (max {site.radius_meters} m). Check-in denied.")
         return redirect("attendance:home")
-    now = timezone.now()
-    arr = arrival_status(now, site)
+    arr = arrival_status(now_dt, site)
     record = Attendance.objects.create(
         user=request.user, project_site=site,
         check_in_latitude=lat, check_in_longitude=lng,
         arrival_status=arr,
     )
+
+    # ── Auto-create EventCheckIn if user is registered for an active event ──
+    # This links the GPS attendance check-in to the event, so the event
+    # report's "Attended?" column shows "Yes" for this user.
+    from events.models import EventCheckIn as _EventCheckIn
+    if active_event_reg:
+        event_for_checkin = active_event_reg.event
+        _EventCheckIn.objects.get_or_create(
+            event=event_for_checkin,
+            participant=request.user,
+            defaults={
+                "latitude": lat,
+                "longitude": lng,
+                "distance_meters": Decimal(str(round(float(distance), 2))),
+            },
+        )
+
     arr_label = arr.replace("_", " ").title()
     notify_attendance(
         request.user,
         f"Check-in recorded — {arr_label}",
-        f"You checked in at {timezone.localtime(now):%H:%M} on {timezone.localtime(now):%d %b %Y}. "
+        f"You checked in at {timezone.localtime(now_dt):%H:%M} on {timezone.localtime(now_dt):%d %b %Y}. "
         f"Arrival status: {arr_label}. Remember to check out before {site.expected_check_out_time.strftime('%H:%M')}.",
         priority="low" if arr != Attendance.ArrivalStatus.LATE else "medium",
         link="/attendance/",
@@ -568,8 +658,22 @@ def location_status(request):
     user_name = request.user.get_full_name() or request.user.username
 
     if status == "off":
-        # Create a new LocationLog — will be closed when location comes back on
-        LocationLog.objects.create(user=request.user, turned_off_at=now)
+        # Check if there's already an unresolved LocationLog (turned_on_at is None)
+        # If yes, update its turned_off_at time. If no, create a new one.
+        # This ensures consecutive "off" events update the same record instead of creating duplicates.
+        open_log = (
+            LocationLog.objects
+            .filter(user=request.user, turned_on_at__isnull=True)
+            .order_by("-turned_off_at")
+            .first()
+        )
+        if open_log:
+            # Update the existing unresolved record with the new off time
+            open_log.turned_off_at = now
+            open_log.save(update_fields=["turned_off_at"])
+        else:
+            # Create a new LocationLog — will be closed when location comes back on
+            LocationLog.objects.create(user=request.user, turned_off_at=now)
 
         user_title   = "📵 Location Turned Off"
         user_message = (
@@ -737,6 +841,52 @@ def user_location_log(request, user_pk):
     })
 
 
+@role_required("admin", "program_manager", "department_head")
+def all_location_activity(request):
+    """
+    Manager view — all users' recent location on/off events, newest first.
+    Shows who turned off location, when, and for how long.
+    """
+    from .models import LocationLog
+    logs = (
+        LocationLog.objects
+        .select_related("user")
+        .order_by("-turned_off_at")[:200]
+    )
+    # Count unresolved (location still off) for the summary badge
+    unresolved_count = LocationLog.objects.filter(turned_on_at__isnull=True).count()
+    return render(request, "attendance/all_location_activity.html", {
+        "logs": logs,
+        "unresolved_count": unresolved_count,
+    })
+
+
+@login_required
+def location_off_status_api(request):
+    """
+    Lightweight JSON endpoint — returns list of users with location currently off.
+    Called by base.html every 30 s to update the sidebar badge.
+    Restricted to managers; regular users get an empty list.
+    """
+    from .models import LocationLog
+    if not (request.user.can_monitor_attendance() if callable(request.user.can_monitor_attendance) else request.user.can_monitor_attendance):
+        return JsonResponse({"count": 0, "users": []})
+    logs = (
+        LocationLog.objects
+        .filter(turned_on_at__isnull=True)
+        .select_related("user")
+        .order_by("-turned_off_at")
+    )
+    users = [
+        {
+            "name": log.user.get_full_name() or log.user.username,
+            "off_since": log.turned_off_at.strftime("%H:%M"),
+        }
+        for log in logs
+    ]
+    return JsonResponse({"count": len(users), "users": users})
+
+
 @role_required("admin", "program_manager")
 def acknowledge_violation(request, pk):
     """Mark a violation as acknowledged."""
@@ -747,3 +897,113 @@ def acknowledge_violation(request, pk):
         violation.save(update_fields=["resolution", "notes"])
         messages.success(request, f"Violation #{pk} acknowledged.")
     return redirect("attendance:geofence_violations")
+
+
+
+
+@role_required("admin", "program_manager", "department_head")
+def missed_checkout(request):
+    """
+    Shows ONLY sessions that were auto-closed (staff forgot to check out).
+    Identified by matching Attendance records using ActivityLog entries
+    with action=auto_checkout_forgot, keyed by user+date from description.
+    """
+    import re
+    from django.utils import timezone as _tz
+    from django.db.models import Q
+
+    # Collect (user_id, check_in_date) from activity log entries
+    auto_log_qs = (
+        ActivityLog.objects
+        .filter(action="auto_checkout_forgot")
+        .select_related("user")
+        .order_by("-timestamp")[:500]
+    )
+    auto_keys = set()
+    for log in auto_log_qs:
+        if log.user_id:
+            m = re.search(r"Check-in:\s*(\d{4}-\d{2}-\d{2})", log.description)
+            if m:
+                auto_keys.add((log.user_id, m.group(1)))
+
+    if auto_keys:
+        q = Q()
+        for user_id, date_str in auto_keys:
+            q |= Q(user_id=user_id, check_in_time__date=date_str)
+        records = (
+            Attendance.objects
+            .filter(q)
+            .select_related("user", "project_site")
+            .order_by("-check_in_time")[:200]
+        )
+    else:
+        records = Attendance.objects.none()
+
+    today = _tz.localdate()
+    month_start = today.replace(day=1)
+    monthly_count = ActivityLog.objects.filter(
+        action="auto_checkout_forgot",
+        timestamp__date__gte=month_start,
+    ).count()
+    total_count = ActivityLog.objects.filter(action="auto_checkout_forgot").count()
+
+    return render(request, "attendance/missed_checkout.html", {
+        "records": records,
+        "monthly_count": monthly_count,
+        "total_count": total_count,
+        "filter_title": "Missed Checkout",
+        "filter_description": "Staff who forgot to check out and were automatically logged out at the site deadline.",
+    })
+
+
+@role_required("admin", "program_manager", "department_head")
+def missed_checkout_report(request, fmt):
+    """Download missed-checkout records as PDF or Excel."""
+    import re
+    from django.db.models import Q
+    from core.reports import excel_response, pdf_response
+
+    auto_log_qs = (
+        ActivityLog.objects
+        .filter(action="auto_checkout_forgot")
+        .select_related("user")
+        .order_by("-timestamp")[:500]
+    )
+    auto_keys = set()
+    for log in auto_log_qs:
+        if log.user_id:
+            m = re.search(r"Check-in:\s*(\d{4}-\d{2}-\d{2})", log.description)
+            if m:
+                auto_keys.add((log.user_id, m.group(1)))
+
+    if auto_keys:
+        q = Q()
+        for user_id, date_str in auto_keys:
+            q |= Q(user_id=user_id, check_in_time__date=date_str)
+        records = (
+            Attendance.objects
+            .filter(q)
+            .select_related("user", "project_site")
+            .order_by("-check_in_time")
+        )
+    else:
+        records = Attendance.objects.none()
+
+    headers = ["Staff Member", "Email", "Date", "Check In", "Auto Check-Out", "Hours", "Site"]
+    rows = []
+    for rec in records:
+        rows.append([
+            rec.user.get_full_name() or rec.user.username,
+            rec.user.email,
+            rec.check_in_time.strftime("%d %b %Y"),
+            timezone.localtime(rec.check_in_time).strftime("%H:%M"),
+            timezone.localtime(rec.check_out_time).strftime("%H:%M") if rec.check_out_time else "—",
+            str(rec.total_hours) + "h" if rec.total_hours else "—",
+            rec.project_site.name,
+        ])
+
+    fname = "missed-checkout-report"
+    title = "Missed Checkout Report"
+    if fmt == "xlsx":
+        return excel_response(fname, headers, rows)
+    return pdf_response(fname, title, headers, rows)
