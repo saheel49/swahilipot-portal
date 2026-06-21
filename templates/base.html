@@ -53,7 +53,7 @@
 
     /* ── Mobile hamburger button — hidden on desktop, shown on mobile ── */
     .sidebar-toggle{
-      display:none !important;  /* hidden by default on all screen sizes */
+      display:none;  /* hidden on desktop; media query in portal.css shows it on mobile */
       background:none;border:1.5px solid var(--topbar-border);
       border-radius:8px;padding:6px 10px;cursor:pointer;
       color:var(--ink);font-size:1.2rem;line-height:1;

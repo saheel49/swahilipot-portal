@@ -267,3 +267,122 @@ html[data-theme="dark"] .empty-state p, html[data-theme="dark"] .empty-state-sm 
 /* ── Dark mode: theme toggle button ─────────────────────────────────────── */
 html[data-theme="dark"] #themeToggleBtn{color:#fcd34d;border-color:#fcd34d}
 html[data-theme="dark"] #themeToggleBtn:hover{background:#fcd34d;color:#1a1f2e}
+
+/* ═══════════════════════════════════════════════════════════════
+   COMPREHENSIVE DARK MODE — all text/bg fixes across the whole app
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Base text ── */
+html[data-theme="dark"] body{color:var(--ink)}
+html[data-theme="dark"] h1,html[data-theme="dark"] h2,html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,html[data-theme="dark"] h5,html[data-theme="dark"] h6{color:var(--ink)}
+html[data-theme="dark"] p{color:var(--ink)}
+html[data-theme="dark"] label,html[data-theme="dark"] .field-label{color:var(--ink)}
+html[data-theme="dark"] small{color:var(--muted)}
+html[data-theme="dark"] strong{color:var(--ink)}
+html[data-theme="dark"] .fw-bold,html[data-theme="dark"] .fw-semibold{color:var(--ink)}
+
+/* ── Buttons ── */
+html[data-theme="dark"] .btn-outline-secondary{color:#9ca3af;border-color:#4b5563}
+html[data-theme="dark"] .btn-outline-secondary:hover{background:#374151;color:#e5e7eb}
+html[data-theme="dark"] .btn-outline-danger{color:#f87171;border-color:#f87171}
+html[data-theme="dark"] .btn-outline-danger:hover{background:#f87171;color:#0f1117}
+html[data-theme="dark"] .btn-outline-warning{color:#fcd34d;border-color:#fcd34d}
+html[data-theme="dark"] .btn-outline-warning:hover{background:#fcd34d;color:#0f1117}
+html[data-theme="dark"] .btn-secondary{background:#374151;border-color:#4b5563;color:#e5e7eb}
+html[data-theme="dark"] .btn-light{background:#242938;border-color:#374151;color:#e5e7eb}
+
+/* ── Panels / cards ── */
+html[data-theme="dark"] .panel h2,html[data-theme="dark"] .panel h3{color:var(--ink)}
+html[data-theme="dark"] .panel p{color:var(--ink)}
+html[data-theme="dark"] .panel .text-muted{color:var(--muted) !important}
+html[data-theme="dark"] .panel strong{color:var(--ink)}
+html[data-theme="dark"] .panel label{color:var(--ink)}
+html[data-theme="dark"] .panel .fw-semibold{color:var(--ink)}
+html[data-theme="dark"] .panel .small{color:var(--muted)}
+
+/* ── Page headers ── */
+html[data-theme="dark"] .page-header{color:var(--ink)}
+html[data-theme="dark"] .page-header p{color:var(--muted)}
+
+/* ── Lists and rows ── */
+html[data-theme="dark"] .list-group-item{background:var(--surface);border-color:var(--border);color:var(--ink)}
+html[data-theme="dark"] .list-row strong{color:var(--ink)}
+html[data-theme="dark"] .list-row p{color:var(--muted)}
+
+/* ── Breadcrumbs / nav ── */
+html[data-theme="dark"] .breadcrumb-item{color:var(--muted)}
+html[data-theme="dark"] .breadcrumb-item.active{color:var(--ink)}
+html[data-theme="dark"] .nav-link{color:var(--muted)}
+html[data-theme="dark"] .nav-link.active{color:var(--ink)}
+
+/* ── Tables ── */
+html[data-theme="dark"] .table thead th{background:var(--surface2);color:var(--ink);border-color:var(--border)}
+html[data-theme="dark"] .table tbody td{color:var(--ink)}
+html[data-theme="dark"] .table tfoot td{color:var(--ink)}
+html[data-theme="dark"] th{color:var(--ink)}
+
+/* ── Forms ── */
+html[data-theme="dark"] .form-label{color:var(--ink)}
+html[data-theme="dark"] .form-text{color:var(--muted)}
+html[data-theme="dark"] .form-check-label{color:var(--ink)}
+html[data-theme="dark"] .form-check-input{background-color:var(--input-bg);border-color:var(--input-border)}
+html[data-theme="dark"] .field-group label{color:var(--ink)}
+html[data-theme="dark"] fieldset legend{color:var(--ink)}
+
+/* ── Profile page ── */
+html[data-theme="dark"] .profile-photo-placeholder{border-color:var(--border)}
+html[data-theme="dark"] .ue-current-state{background:var(--surface2);border-color:var(--border)}
+html[data-theme="dark"] .ue-current-state .fw-bold{color:var(--ink)}
+html[data-theme="dark"] .ue-current-state .text-muted{color:var(--muted) !important}
+
+/* ── User directory ── */
+html[data-theme="dark"] .ud-role-pill{opacity:.9}
+html[data-theme="dark"] .ud-card{background:var(--surface2);border-color:var(--border)}
+html[data-theme="dark"] .ud-card .fw-semibold{color:var(--ink)}
+html[data-theme="dark"] .ud-card small{color:var(--muted)}
+
+/* ── Communication / channels ── */
+html[data-theme="dark"] .ch-bubble{background:var(--surface2);border-color:var(--border);color:var(--ink)}
+html[data-theme="dark"] .ch-own .ch-bubble{background:#1e3a5f;border-color:#1e40af;color:#bfdbfe}
+html[data-theme="dark"] .ch-name{color:var(--ink)}
+html[data-theme="dark"] .dm-bubble{background:var(--surface2);color:var(--ink)}
+html[data-theme="dark"] .dm-sent .dm-bubble{background:#1e3a5f;color:#bfdbfe}
+html[data-theme="dark"] .dm-meta{color:var(--muted)}
+html[data-theme="dark"] .channel-icon{background:var(--surface2)}
+
+/* ── Suggestions ── */
+html[data-theme="dark"] .suggestion-row{border-color:var(--border);color:var(--ink)}
+html[data-theme="dark"] .suggestion-title{color:var(--ink)}
+
+/* ── Tasks ── */
+html[data-theme="dark"] .task-detail h1,
+html[data-theme="dark"] .task-detail p{color:var(--ink)}
+html[data-theme="dark"] .task-comment{background:var(--surface2);border-color:var(--border);color:var(--ink)}
+
+/* ── Notifications ── */
+html[data-theme="dark"] .notif-row{background:var(--surface);border-color:var(--border);color:var(--ink)}
+html[data-theme="dark"] .notif-row.unread{background:var(--surface2)}
+html[data-theme="dark"] .notif-title{color:var(--ink)}
+html[data-theme="dark"] .notif-msg{color:var(--muted)}
+
+/* ── Events ── */
+html[data-theme="dark"] .event-card{background:var(--panel-bg);border-color:var(--panel-border);color:var(--ink)}
+html[data-theme="dark"] .event-card h2,html[data-theme="dark"] .event-card h3{color:var(--ink)}
+html[data-theme="dark"] .event-card p{color:var(--muted)}
+
+/* ── Misc Bootstrap overrides ── */
+html[data-theme="dark"] .text-dark{color:var(--ink) !important}
+html[data-theme="dark"] .text-black{color:var(--ink) !important}
+html[data-theme="dark"] .bg-white{background:var(--surface) !important}
+html[data-theme="dark"] .bg-light{background:var(--surface2) !important}
+html[data-theme="dark"] .border{border-color:var(--border) !important}
+html[data-theme="dark"] .dropdown-menu{background:var(--surface);border-color:var(--border)}
+html[data-theme="dark"] .dropdown-item{color:var(--ink)}
+html[data-theme="dark"] .dropdown-item:hover{background:var(--surface2);color:var(--ink)}
+html[data-theme="dark"] .dropdown-divider{border-color:var(--border)}
+html[data-theme="dark"] hr{border-color:var(--border)}
+html[data-theme="dark"] .input-group-text{background:var(--surface2);border-color:var(--input-border);color:var(--ink)}
+html[data-theme="dark"] .pagination .page-link{background:var(--surface);border-color:var(--border);color:var(--link)}
+html[data-theme="dark"] .pagination .page-item.active .page-link{background:var(--primary);border-color:var(--primary)}
+html[data-theme="dark"] .pagination .page-item.disabled .page-link{color:var(--muted)}

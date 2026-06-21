@@ -16,18 +16,41 @@ class UserAdminChangeForm(UserChangeForm):
 
 
 class ProfileForm(forms.ModelForm):
+    username = forms.CharField(
+        max_length=150,
+        help_text="Letters, digits and @/./+/-/_ only.",
+    )
+
     class Meta:
         model = User
-        fields = ("first_name", "last_name", "email", "phone_number", "profile_photo")
+        fields = ("username", "first_name", "last_name", "email", "phone_number", "profile_photo")
 
+    def clean_username(self):
+        username = self.cleaned_data["username"]
+        qs = User.objects.filter(username=username).exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("That username is already taken.")
+        return username
 
 
 class UserEditForm(forms.ModelForm):
-    """Admin-facing form to edit any user's role, department and status."""
+    """Admin-facing form to edit any user's role, department, username and status."""
+    username = forms.CharField(
+        max_length=150,
+        help_text="Letters, digits and @/./+/-/_ only.",
+    )
+
     class Meta:
         model = User
-        fields = ("first_name", "last_name", "email", "phone_number",
+        fields = ("username", "first_name", "last_name", "email", "phone_number",
                   "role", "department", "is_active")
+
+    def clean_username(self):
+        username = self.cleaned_data["username"]
+        qs = User.objects.filter(username=username).exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("That username is already taken.")
+        return username
 
 
 class AddUserForm(UserCreationForm):
