@@ -2,17 +2,24 @@
 {% block content %}
 <div class="page-header">
   <h1><i class="bi bi-chat-dots-fill me-2"></i>Communication</h1>
-  {% if user.can_manage_communication %}
-  <a class="btn btn-primary" href="{% url 'communication:announcement_create' %}">
-    <i class="bi bi-megaphone me-1"></i>New Announcement
-  </a>
-  {% endif %}
+  <div class="d-flex gap-2 flex-wrap">
+    {% if user.can_publish_announcements %}
+    <a class="btn btn-primary" href="{% url 'communication:announcement_create' %}">
+      <i class="bi bi-megaphone me-1"></i>New Announcement
+    </a>
+    {% endif %}
+    {% if user.is_portal_admin %}
+    <a class="btn btn-outline-primary" href="{% url 'communication:channel_create' %}">
+      <i class="bi bi-plus-circle me-1"></i>New Channel
+    </a>
+    {% endif %}
+  </div>
 </div>
 
 <div class="grid-2">
   <!-- Announcements -->
   <div class="panel">
-    <h2><i class="bi bi-megaphone me-2"></i>Announcements</h2>
+    <h2 class="mb-3"><i class="bi bi-megaphone me-2"></i>Announcements</h2>
     {% for a in announcements %}
     <div class="list-row flex-column align-items-start gap-1">
       <div class="d-flex justify-content-between w-100">
@@ -26,29 +33,55 @@
       </a>
       {% endif %}
     </div>
-    {% empty %}<p class="text-muted">No announcements.</p>{% endfor %}
+    {% empty %}<p class="text-muted small">No announcements yet.</p>{% endfor %}
   </div>
 
   <!-- Department Channels -->
   <div class="panel">
-    <h2><i class="bi bi-hash me-2"></i>Department Channels</h2>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="mb-0"><i class="bi bi-hash me-2"></i>Department Channels</h2>
+    </div>
     {% for c in channels %}
-    <a class="list-row" href="{% url 'communication:channel' c.pk %}">
-      <span><i class="bi bi-chat-square-text me-2 text-primary"></i>{{ c.name }}</span>
-      <span class="text-muted small">{{ c.department }}</span>
-    </a>
-    {% empty %}<p class="text-muted">No channels in your department.</p>{% endfor %}
+    <div class="d-flex align-items-center justify-content-between py-2" style="border-bottom:1px solid var(--border)">
+      <a href="{% url 'communication:channel' c.pk %}" class="text-decoration-none d-flex align-items-center gap-2 flex-grow-1">
+        <span class="channel-icon"><i class="bi bi-chat-square-text text-primary"></i></span>
+        <div>
+          <div class="fw-semibold" style="font-size:.92rem">#{{ c.name }}</div>
+          <div class="text-muted" style="font-size:.72rem">{{ c.department }}</div>
+        </div>
+      </a>
+      {% if user.is_portal_admin %}
+      <form method="post" action="{% url 'communication:channel_delete' c.pk %}"
+            onsubmit="return confirm('Delete channel #{{ c.name }}? All messages will be lost.')">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete channel">
+          <i class="bi bi-trash"></i>
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    {% empty %}
+    <div class="text-center py-4">
+      <i class="bi bi-chat-square-text fs-2 text-muted d-block mb-2"></i>
+      <p class="text-muted small mb-2">No channels in your department yet.</p>
+      {% if user.is_portal_admin %}
+      <a href="{% url 'communication:channel_create' %}" class="btn btn-sm btn-primary">
+        <i class="bi bi-plus-circle me-1"></i>Create First Channel
+      </a>
+      {% endif %}
+    </div>
+    {% endfor %}
   </div>
 </div>
 
 <!-- Direct Messages -->
-<div class="panel">
-  <h2><i class="bi bi-envelope me-2"></i>Direct Messages</h2>
+<div class="panel mt-4">
+  <h2 class="mb-3"><i class="bi bi-envelope me-2"></i>Direct Messages</h2>
   <form method="post" enctype="multipart/form-data" action="{% url 'communication:send_direct' %}" class="dm-compose mb-4">
     {% csrf_token %}
     {% for field in dm_form %}
     <div class="mb-2">
-      <label class="field-label">{{ field.label }}</label>
+      <label class="field-label small fw-semibold text-uppercase" style="letter-spacing:.5px;font-size:.7rem">{{ field.label }}</label>
       {{ field }}
     </div>
     {% endfor %}
@@ -76,7 +109,7 @@
       </div>
     </div>
     {% empty %}
-    <p class="text-muted">No messages yet.</p>
+    <p class="text-muted small">No messages yet.</p>
     {% endfor %}
   </div>
 </div>
@@ -92,6 +125,6 @@
 .dm-attachment{margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,.08)}
 .attach-link{font-size:.8rem;color:#1d4ed8;text-decoration:none;display:inline-flex;align-items:center}
 .attach-link:hover{text-decoration:underline}
-.dm-list{display:flex;flex-direction:column}
+.channel-icon{width:32px;height:32px;border-radius:8px;background:#eff6ff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 </style>
 {% endblock %}

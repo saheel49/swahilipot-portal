@@ -3,11 +3,11 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from accounts.models import User
-from core.permissions import capability_required
+from accounts.models import Department, User
+from core.permissions import capability_required, role_required
 from core.notify import notify_all, notify_user, notify_dept
-from .forms import AnnouncementForm, ChannelMessageForm, DirectMessageForm
-from .models import Announcement, DepartmentChannel, DirectMessage, Notification
+from .forms import AnnouncementForm, ChannelForm, ChannelMessageForm, DirectMessageForm
+from .models import Announcement, DepartmentChannel, ChannelMessage, DirectMessage, Notification
 
 
 @login_required
@@ -15,11 +15,14 @@ def home(request):
     announcements = Announcement.objects.all()[:10]
     user = request.user
     if user.is_portal_admin():
-        channels = DepartmentChannel.objects.all()
+        channels = DepartmentChannel.objects.select_related("department").all()
     elif user.department_id:
-        channels = DepartmentChannel.objects.filter(department=user.department)
+        channels = DepartmentChannel.objects.filter(
+            department=user.department
+        ).select_related("department")
     else:
         channels = DepartmentChannel.objects.none()
+
     messages_qs = DirectMessage.objects.filter(
         Q(sender=user) | Q(receiver=user)
     ).select_related("sender", "receiver").order_by("-timestamp")[:20]
@@ -34,7 +37,7 @@ def home(request):
     })
 
 
-@capability_required("can_manage_communication")
+@capability_required("can_publish_announcements")
 def announcement_create(request):
     form = AnnouncementForm(request.POST or None, request.FILES or None)
     if request.method == "POST" and form.is_valid():
@@ -52,13 +55,43 @@ def announcement_create(request):
     return render(request, "form.html", {"form": form, "title": "New Announcement"})
 
 
+@role_required("admin")
+def channel_create(request):
+    """Admin creates a new department channel."""
+    form = ChannelForm(
+        request.POST or None,
+        dept_queryset=Department.objects.all().order_by("name"),
+    )
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Channel created.")
+        return redirect("communication:home")
+    return render(request, "form.html", {"form": form, "title": "Create Department Channel"})
+
+
+@role_required("admin")
+def channel_delete(request, pk):
+    """Admin deletes a department channel."""
+    ch = get_object_or_404(DepartmentChannel, pk=pk)
+    if request.method == "POST":
+        name = ch.name
+        ch.delete()
+        messages.success(request, f"Channel #{name} deleted.")
+    return redirect("communication:home")
+
+
 @login_required
 def channel(request, pk):
     channel_obj = get_object_or_404(DepartmentChannel, pk=pk)
     user = request.user
+    # Access: admin sees all; others must belong to the channel's department
     if not user.is_portal_admin() and user.department_id != channel_obj.department_id:
         messages.error(request, "You do not have access to this channel.")
         return redirect("communication:home")
+
+    # Paginate messages — show last 100
+    channel_messages = channel_obj.messages.select_related("sender").order_by("timestamp")[:100]
+
     form = ChannelMessageForm(request.POST or None, request.FILES or None)
     if request.method == "POST" and form.is_valid():
         msg = form.save(commit=False)
@@ -69,12 +102,17 @@ def channel(request, pk):
             notify_dept(
                 channel_obj.department,
                 f"New message in #{channel_obj.name}",
-                f'{user} posted in #{channel_obj.name}: "{msg.content[:80]}"',
+                f'{user.get_full_name() or user.username} posted in #{channel_obj.name}: "{msg.content[:80]}"',
                 exclude_pk=user.pk,
                 link=f"/communication/channels/{channel_obj.pk}/",
             )
         return redirect("communication:channel", pk=pk)
-    return render(request, "communication/channel.html", {"channel": channel_obj, "form": form})
+
+    return render(request, "communication/channel.html", {
+        "channel": channel_obj,
+        "channel_messages": channel_messages,
+        "form": form,
+    })
 
 
 @login_required

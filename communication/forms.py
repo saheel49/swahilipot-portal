@@ -1,6 +1,6 @@
 from django import forms
-from accounts.models import User
-from .models import Announcement, ChannelMessage, DirectMessage
+from accounts.models import Department, User
+from .models import Announcement, ChannelMessage, DepartmentChannel, DirectMessage
 
 
 class AnnouncementForm(forms.ModelForm):
@@ -9,18 +9,31 @@ class AnnouncementForm(forms.ModelForm):
         fields = ("title", "content", "attachment")
 
 
+class ChannelForm(forms.ModelForm):
+    class Meta:
+        model  = DepartmentChannel
+        fields = ("department", "name")
+
+    def __init__(self, *args, dept_queryset=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if dept_queryset is not None:
+            self.fields["department"].queryset = dept_queryset
+        self.fields["name"].label = "Channel name"
+        self.fields["department"].label = "Department"
+
+
 class ChannelMessageForm(forms.ModelForm):
     class Meta:
         model  = ChannelMessage
         fields = ("content", "attachment")
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["content"].widget = forms.Textarea(attrs={"rows": 2, "placeholder": "Write a message…"})
+        self.fields["content"].label = ""
+
 
 class DirectMessageForm(forms.ModelForm):
-    """
-    Accepts an optional ``receiver_queryset`` kwarg so the view can
-    restrict who appears in the recipient dropdown (active users only,
-    never the sender themselves).
-    """
     class Meta:
         model  = DirectMessage
         fields = ("receiver", "message", "attachment")

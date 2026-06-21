@@ -3,24 +3,28 @@
 <div class="page-header">
   <div>
     <h1><i class="bi bi-hash me-2"></i>{{ channel.name }}</h1>
-    <span class="text-muted small">{{ channel.department }}</span>
+    <span class="text-muted small"><i class="bi bi-building me-1"></i>{{ channel.department }}</span>
   </div>
   <a href="{% url 'communication:home' %}" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-arrow-left me-1"></i>Back
   </a>
 </div>
+
 <div class="panel">
-  <div class="channel-messages mb-4">
-    {% for msg in channel.messages.all %}
+
+  <!-- Messages thread -->
+  <div class="channel-messages mb-4" id="channelMessages">
+    {% for msg in channel_messages %}
     <div class="ch-msg {% if msg.sender == user %}ch-own{% endif %}">
       <div class="ch-meta">
-        <strong>{{ msg.sender }}</strong>
+        <span class="ch-avatar">{{ msg.sender.get_full_name|default:msg.sender.username|slice:":1"|upper }}</span>
+        <strong class="ch-name">{{ msg.sender.get_full_name|default:msg.sender.username }}</strong>
         <span class="text-muted small ms-2">{{ msg.timestamp|date:"M d, H:i" }}</span>
       </div>
       <div class="ch-bubble">
         {{ msg.content }}
         {% if msg.attachment %}
-        <div class="dm-attachment mt-2">
+        <div class="ch-attachment mt-2">
           <a href="{{ msg.attachment.url }}" target="_blank" class="attach-link">
             <i class="bi bi-paperclip me-1"></i>{{ msg.attachment.name|cut:"channel_messages/" }}
           </a>
@@ -29,28 +33,151 @@
       </div>
     </div>
     {% empty %}
-    <p class="text-muted">No messages yet. Start the conversation!</p>
-    {% endfor %}
-  </div>
-  <form method="post" enctype="multipart/form-data" class="ch-compose">
-    {% csrf_token %}
-    {% for field in form %}
-    <div class="mb-2">
-      <label class="field-label">{{ field.label }}</label>{{ field }}
+    <div class="text-center py-5" id="emptyState">
+      <i class="bi bi-chat-square-text fs-1 text-muted d-block mb-2"></i>
+      <p class="text-muted">No messages yet — start the conversation!</p>
     </div>
     {% endfor %}
-    <button class="btn btn-primary"><i class="bi bi-send me-1"></i>Post Message</button>
+  </div>
+
+  <!-- Compose form -->
+  <form method="post" enctype="multipart/form-data" class="ch-compose" id="composeForm">
+    {% csrf_token %}
+    <div class="ch-compose-row">
+      <div class="flex-grow-1">
+        {{ form.content }}
+        {% if form.content.errors %}
+        <div class="text-danger small mt-1">{{ form.content.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div class="ch-compose-actions">
+        <label class="btn btn-sm btn-outline-secondary" title="Attach file">
+          <i class="bi bi-paperclip"></i>
+          {{ form.attachment }}
+        </label>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-send-fill me-1"></i>Send
+        </button>
+      </div>
+    </div>
+    <div id="fileNameDisplay" class="text-muted small mt-1" style="display:none"></div>
   </form>
 </div>
+
 <style>
-.channel-messages{display:flex;flex-direction:column;gap:12px}
-.ch-msg{max-width:78%}
-.ch-own{align-self:flex-end}
-.ch-meta{font-size:.75rem;margin-bottom:3px}
-.ch-bubble{background:#f3f4f6;padding:10px 14px;border-radius:12px;font-size:.9rem}
-.ch-own .ch-bubble{background:#dbeafe}
-.attach-link{font-size:.8rem;color:#1d4ed8;text-decoration:none;display:inline-flex;align-items:center}
+/* ── Messages thread ── */
+.channel-messages{
+  display:flex;flex-direction:column;gap:14px;
+  max-height:520px;overflow-y:auto;
+  padding-right:4px;
+  scroll-behavior:smooth;
+}
+.channel-messages::-webkit-scrollbar{width:5px}
+.channel-messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+/* Individual message */
+.ch-msg{display:flex;flex-direction:column;gap:3px;max-width:72%}
+.ch-own{align-self:flex-end;align-items:flex-end}
+
+.ch-meta{display:flex;align-items:center;gap:7px}
+.ch-avatar{
+  width:26px;height:26px;border-radius:50%;
+  background:linear-gradient(135deg,#1e40af,#3b82f6);
+  color:#fff;font-size:.72rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.ch-own .ch-avatar{order:2}
+.ch-own .ch-name{order:1}
+.ch-name{font-size:.82rem;font-weight:600;color:var(--ink)}
+
+.ch-bubble{
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:0 12px 12px 12px;
+  padding:10px 14px;
+  font-size:.9rem;line-height:1.55;
+  color:var(--ink);
+  word-break:break-word;
+}
+.ch-own .ch-bubble{
+  background:#dbeafe;
+  border-color:#bfdbfe;
+  border-radius:12px 0 12px 12px;
+  color:#1e3a5f;
+}
+
+.ch-attachment{padding-top:6px;border-top:1px solid rgba(0,0,0,.1)}
+.attach-link{font-size:.8rem;color:#1d4ed8;text-decoration:none;display:inline-flex;align-items:center;gap:3px}
 .attach-link:hover{text-decoration:underline}
-.dm-attachment{padding-top:6px;border-top:1px solid rgba(0,0,0,.08)}
+
+/* ── Compose ── */
+.ch-compose{
+  border-top:1px solid var(--border);
+  padding-top:16px;
+}
+.ch-compose-row{
+  display:flex;align-items:flex-end;gap:10px;
+}
+.ch-compose-row textarea{
+  width:100%;border-radius:10px;resize:none;
+  padding:10px 14px;
+  border:1.5px solid var(--border);
+  background:var(--input-bg);
+  color:var(--input-color);
+  font-size:.92rem;
+  font-family:inherit;
+  line-height:1.5;
+  transition:border-color .2s,box-shadow .2s;
+  outline:none;
+}
+.ch-compose-row textarea:focus{
+  border-color:#3b82f6;
+  box-shadow:0 0 0 3px rgba(59,130,246,.12);
+}
+.ch-compose-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.ch-compose-actions input[type="file"]{display:none}
+
+/* Mobile */
+@media(max-width:600px){
+  .ch-msg,.ch-own{max-width:92%}
+  .channel-messages{max-height:360px}
+}
 </style>
+
+<script>
+// Scroll messages to bottom on load
+(function(){
+  var box = document.getElementById('channelMessages');
+  if (box) box.scrollTop = box.scrollHeight;
+})();
+
+// Show selected filename
+(function(){
+  var fileInput = document.querySelector('input[type="file"]');
+  var display   = document.getElementById('fileNameDisplay');
+  if (!fileInput || !display) return;
+  fileInput.addEventListener('change', function(){
+    if (fileInput.files.length > 0) {
+      display.textContent = 'Attached: ' + fileInput.files[0].name;
+      display.style.display = 'block';
+    } else {
+      display.style.display = 'none';
+    }
+  });
+})();
+
+// Submit on Enter (Shift+Enter for newline)
+(function(){
+  var ta   = document.querySelector('.ch-compose-row textarea');
+  var form = document.getElementById('composeForm');
+  if (!ta || !form) return;
+  ta.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (ta.value.trim()) form.submit();
+    }
+  });
+})();
+</script>
 {% endblock %}
