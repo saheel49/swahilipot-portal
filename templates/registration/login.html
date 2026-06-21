@@ -1,0 +1,863 @@
+﻿{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Swahilipot Hub Portal — Login</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --blue:#1e40af;--blue-light:#3b82f6;--accent:#60a5fa;
+      --dark:#060e1f;--navy:#0a1628;--white:#ffffff;
+    }
+    html,body{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif}
+    body{display:flex;background:var(--dark)}
+
+    /* ─────────── LEFT PANEL ─────────── */
+    .left-panel{
+      flex:1;position:relative;overflow:hidden;
+      display:flex;flex-direction:column;justify-content:flex-end;
+      min-height:0;
+    }
+
+    /* Slides */
+    .slide{
+      position:absolute;inset:0;
+      background-size:cover;background-position:center;
+      opacity:0;transition:opacity 1.4s cubic-bezier(.4,0,.2,1);
+    }
+    .slide.active{opacity:1}
+
+    /* Overlays */
+    .overlay-gradient{
+      position:absolute;inset:0;z-index:1;
+      background:linear-gradient(
+        160deg,
+        rgba(6,14,31,.15) 0%,
+        rgba(6,14,31,.05) 35%,
+        rgba(6,14,31,.75) 75%,
+        rgba(6,14,31,.95) 100%
+      );
+    }
+    .overlay-color{
+      position:absolute;inset:0;z-index:2;
+      background:linear-gradient(
+        135deg,
+        rgba(30,64,175,.18) 0%,
+        transparent 60%,
+        rgba(96,165,250,.10) 100%
+      );
+    }
+
+    /* Animated subtle grid */
+    .grid-fx{
+      position:absolute;inset:0;z-index:3;
+      background-image:
+        linear-gradient(rgba(59,130,246,.06) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(59,130,246,.06) 1px,transparent 1px);
+      background-size:72px 72px;
+      animation:gridMove 25s linear infinite;
+    }
+    @keyframes gridMove{to{background-position:72px 72px}}
+
+    /* Floating orbs */
+    .orb{position:absolute;border-radius:50%;filter:blur(80px);z-index:3;animation:float 10s ease-in-out infinite}
+    .orb-a{width:320px;height:320px;background:rgba(30,64,175,.22);top:-60px;left:-80px;animation-delay:0s}
+    .orb-b{width:220px;height:220px;background:rgba(96,165,250,.12);bottom:130px;right:-40px;animation-delay:5s}
+    .orb-c{width:160px;height:160px;background:rgba(59,130,246,.14);top:40%;left:30%;animation-delay:2.5s}
+    @keyframes float{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-32px) scale(1.05)}}
+
+    /* Scan line */
+    .scan{
+      position:absolute;left:0;right:0;height:1.5px;z-index:4;
+      background:linear-gradient(90deg,transparent 0%,rgba(59,130,246,.6) 30%,rgba(245,158,11,.8) 50%,rgba(59,130,246,.6) 70%,transparent 100%);
+      animation:scanAnim 6s ease-in-out infinite;
+    }
+    @keyframes scanAnim{0%{top:-2px;opacity:0}8%{opacity:1}92%{opacity:.6}100%{top:100%;opacity:0}}
+
+    /* Slide navigation dots */
+    .slide-dots{
+      position:absolute;left:40px;bottom:36px;z-index:10;
+      display:flex;flex-direction:column;gap:6px;
+    }
+    .dot{
+      width:3px;height:24px;border-radius:2px;
+      background:rgba(255,255,255,.3);cursor:pointer;
+      transition:all .35s ease;
+    }
+    .dot.active{background:var(--accent);height:36px;box-shadow:0 0 10px rgba(245,158,11,.6)}
+
+    /* Caption badge */
+    .slide-caption{
+      position:absolute;top:28px;left:0;right:0;z-index:8;
+      display:flex;justify-content:center;
+    }
+    .caption-pill{
+      font-size:.68rem;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;
+      color:rgba(255,255,255,.88);
+      background:rgba(6,14,31,.4);backdrop-filter:blur(8px);
+      border:1px solid rgba(255,255,255,.15);
+      padding:6px 18px;border-radius:30px;
+    }
+
+    /* Main left content */
+    .left-content{
+      position:relative;z-index:8;
+      padding:0 56px 52px 56px;
+      max-width:600px;
+    }
+
+    /* Large logo */
+    .hero-logo{
+      width:110px;height:110px;border-radius:24px;
+      background:rgba(255,255,255,.97);
+      display:flex;align-items:center;justify-content:center;
+      padding:12px;margin-bottom:24px;
+      box-shadow:
+        0 0 0 6px rgba(255,255,255,.12),
+        0 0 0 12px rgba(30,64,175,.15),
+        0 20px 60px rgba(0,0,0,.5),
+        0 0 80px rgba(30,64,175,.35);
+    }
+    .hero-logo img{width:100%;height:100%;object-fit:contain;}
+
+    .hero-title{
+      font-size:2.6rem;font-weight:900;color:#fff;
+      line-height:1.1;letter-spacing:-.5px;margin-bottom:10px;
+      text-shadow:0 2px 20px rgba(0,0,0,.7);
+    }
+    .hero-title span{color:var(--accent)}
+    .hero-sub{
+      font-size:.95rem;color:rgba(255,255,255,.78);
+      margin-bottom:18px;line-height:1.6;
+      text-shadow:0 1px 8px rgba(0,0,0,.5);
+    }
+    .hero-meta{
+      display:flex;flex-direction:column;gap:5px;
+      margin-bottom:26px;
+    }
+    .meta-row{
+      display:flex;align-items:center;gap:8px;
+      font-size:.8rem;color:rgba(255,255,255,.72);
+    }
+    .meta-row i{color:var(--accent);font-size:.85rem;width:16px;flex-shrink:0}
+    .meta-row a{color:var(--accent);text-decoration:none;font-weight:600}
+
+    /* Feature pills */
+    .features{display:flex;flex-wrap:wrap;gap:8px}
+    .feat-pill{
+      display:flex;align-items:center;gap:5px;
+      padding:5px 13px;border-radius:20px;font-size:.7rem;font-weight:600;
+      background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
+      color:rgba(255,255,255,.88);backdrop-filter:blur(6px);
+      transition:all .2s;
+    }
+    .feat-pill i{color:var(--accent);font-size:.75rem}
+
+    /* ─────────── RIGHT PANEL ─────────── */
+    .right-panel{
+      width:440px;min-width:360px;
+      background:#f9fafb;
+      display:flex;flex-direction:column;
+      justify-content:flex-start;
+      padding:32px 42px 20px;
+      position:relative;overflow-y:auto;
+      /* allow the panel to scroll when content + dropdown is taller than viewport */
+    }
+    .right-panel::before{
+      content:'';position:absolute;top:0;left:0;bottom:0;width:1px;
+      background:linear-gradient(to bottom,transparent,rgba(30,64,175,.25),transparent);
+    }
+
+    /* Brand header */
+    .brand-hdr{
+      display:flex;align-items:center;gap:14px;
+      margin-bottom:30px;padding-bottom:24px;
+      border-bottom:1px solid #e5e7eb;
+    }
+    .brand-logo-box{
+      width:72px;height:72px;border-radius:18px;
+      background:#fff;padding:8px;flex-shrink:0;
+      border:1.5px solid #dbeafe;
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:0 4px 16px rgba(30,64,175,.14);
+    }
+    .brand-logo-box img{width:100%;height:100%;object-fit:contain}
+    .brand-words{}
+    .brand-name{font-size:1rem;font-weight:800;color:var(--navy);line-height:1.2;margin-bottom:2px}
+    .brand-tag{font-size:.67rem;color:#6b7280;margin-bottom:4px}
+    .brand-loc{
+      display:flex;align-items:center;gap:4px;
+      font-size:.64rem;color:#9ca3af;
+    }
+    .brand-loc i{color:var(--blue);font-size:.7rem}
+    .brand-links{display:flex;gap:6px;margin-top:6px}
+    .brand-links a{
+      font-size:.62rem;font-weight:600;color:var(--blue);
+      background:#eff6ff;padding:2px 9px;border-radius:10px;
+      text-decoration:none;display:flex;align-items:center;gap:3px;
+    }
+    .brand-links a:hover{background:#dbeafe}
+
+    /* Form */
+    .form-eyebrow{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+    .pulse-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);animation:pulse 2s ease-in-out infinite}
+    @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(.75)}}
+    .form-eyebrow span{font-size:.68rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#9ca3af}
+    .form-title{font-size:1.8rem;font-weight:800;color:var(--navy);margin-bottom:4px}
+    .form-sub{font-size:.85rem;color:#6b7280;margin-bottom:26px}
+
+    .fld{margin-bottom:16px}
+    .fld-lbl{display:block;font-size:.7rem;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#374151;margin-bottom:5px}
+    .fld-wrap{position:relative}
+    .fld-ico{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#9ca3af;font-size:.95rem;pointer-events:none}
+    .fld-input{
+      width:100%;padding:12px 13px 12px 40px;
+      border:1.5px solid #e5e7eb;border-radius:10px;
+      font-size:.92rem;color:#111827;background:#fff;
+      transition:all .25s;outline:none;font-family:inherit;
+    }
+    .fld-input:focus{border-color:var(--blue-light);box-shadow:0 0 0 4px rgba(59,130,246,.10)}
+    .fld-input::placeholder{color:#9ca3af}
+
+    .btn-signin{
+      width:100%;padding:13px;margin-top:4px;
+      border:none;border-radius:10px;cursor:pointer;
+      background:linear-gradient(135deg,#1e40af 0%,#2563eb 50%,#3b82f6 100%);
+      color:#fff;font-size:.95rem;font-weight:700;letter-spacing:.3px;
+      display:flex;align-items:center;justify-content:center;gap:8px;
+      transition:all .3s;font-family:inherit;
+      box-shadow:0 4px 16px rgba(30,64,175,.3);
+    }
+    .btn-signin:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(30,64,175,.4)}
+    .btn-signin:active{transform:translateY(0)}
+
+    .err-box{
+      background:#fef2f2;border:1px solid #fecaca;
+      border-radius:8px;padding:10px 13px;margin-bottom:16px;
+      font-size:.82rem;color:#b91c1c;
+      display:flex;align-items:center;gap:6px;
+    }
+
+    /* Contact row */
+    .contact-strip{
+      margin-top:20px;padding-top:16px;
+      border-top:1px dashed #e5e7eb;
+      display:flex;flex-wrap:wrap;gap:6px;
+    }
+    .c-chip{
+      display:flex;align-items:center;gap:4px;
+      font-size:.63rem;color:#6b7280;
+    }
+    .c-chip i{color:var(--blue);font-size:.68rem}
+    .c-chip a{color:var(--blue);text-decoration:none;font-weight:600}
+
+    /* Footer */
+    .login-footer{
+      margin-top:16px;padding-top:14px;
+      border-top:1px solid #e5e7eb;
+      text-align:center;font-size:.63rem;color:#9ca3af;
+      line-height:1.8;
+    }
+    .login-footer strong{color:#6b7280}
+
+    @media(max-width:820px){
+      html,body{height:100%;overflow:hidden}
+      body{flex-direction:row}  /* keep side by side */
+      .left-panel{flex:0 0 38%;min-width:0}
+      .left-content{padding:0 24px 40px 24px}
+      .hero-title{font-size:1.6rem}
+      .hero-sub,.hero-meta,.features{display:none}
+      .right-panel{
+        flex:1;min-width:0;
+        padding:24px 20px 20px;
+        overflow-y:auto;
+        -webkit-overflow-scrolling:touch;
+      }
+    }
+    @media(max-width:520px){
+      body{flex-direction:column}
+      .left-panel{
+        flex:0 0 220px;
+        width:100%;
+      }
+      .left-content{padding:0 18px 28px}
+      .hero-title{font-size:1.3rem}
+      .hero-logo{width:70px;height:70px;border-radius:16px;margin-bottom:12px}
+      .slide-dots{display:none}
+      .right-panel{
+        flex:1;
+        width:100%;min-width:0;
+        padding:20px 18px 20px;
+        overflow-y:auto;
+        -webkit-overflow-scrolling:touch;
+        /* On small phones make right panel fill remaining space */
+        min-height:0;
+      }
+    }
+
+    /* ── Radio player ── */
+    .radio-player{
+      margin-top:12px;flex-shrink:0;
+      background:linear-gradient(135deg,#0f1b30,#1a2f50);
+      border-radius:14px;
+      border:1px solid rgba(96,165,250,.25);
+      box-shadow:0 4px 24px rgba(0,0,0,.3);
+    }
+    .radio-header{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:11px 14px;cursor:pointer;user-select:none;
+      border-radius:14px;transition:background .2s;
+    }
+    .radio-header:hover{background:rgba(255,255,255,.05)}
+    .radio-title{display:flex;align-items:center;gap:8px}
+    .radio-label{font-size:.8rem;font-weight:700;color:#fff;letter-spacing:.2px}
+    .radio-dot{
+      width:8px;height:8px;border-radius:50%;flex-shrink:0;
+      background:#10b981;box-shadow:0 0 8px #10b981;
+      animation:rdot 1.5s ease-in-out infinite;
+    }
+    @keyframes rdot{0%,100%{opacity:1}50%{opacity:.3}}
+    .radio-actions{display:flex;align-items:center;gap:4px}
+    .radio-ext-link{
+      color:rgba(255,255,255,.45);font-size:.82rem;
+      text-decoration:none;padding:4px 7px;border-radius:6px;line-height:1;
+    }
+    .radio-ext-link:hover{color:#60a5fa;background:rgba(255,255,255,.1)}
+    .radio-arrow-btn{
+      background:rgba(255,255,255,.12);border:none;color:#fff;
+      border-radius:8px;padding:5px 10px;cursor:pointer;
+      font-size:.82rem;line-height:1;
+      display:flex;align-items:center;justify-content:center;
+      transition:background .2s;
+    }
+    .radio-arrow-btn:hover{background:rgba(255,255,255,.25)}
+    .radio-body{
+      background:rgba(0,0,0,.22);
+      border-top:1px solid rgba(255,255,255,.08);
+      border-radius:0 0 14px 14px;
+      padding:12px 14px 14px;
+    }
+    .radio-row{display:flex;align-items:center;gap:11px;}
+    .radio-art{
+      width:50px;height:50px;border-radius:9px;object-fit:cover;flex-shrink:0;
+      border:1px solid rgba(255,255,255,.15);background:#1e3a5f;
+    }
+    .radio-info{flex:1;min-width:0;}
+    .radio-info-top{font-size:.8rem;font-weight:700;color:#fff;margin-bottom:2px;}
+    .radio-info-mid{
+      display:flex;align-items:center;gap:5px;
+      font-size:.68rem;color:rgba(255,255,255,.5);margin-bottom:2px;
+    }
+    .radio-bars{display:flex;align-items:flex-end;gap:1.5px;height:10px;}
+    .radio-bars b{
+      display:block;width:2.5px;border-radius:1px;background:#10b981;
+      animation:rbar 1s ease-in-out infinite;
+    }
+    .radio-bars b:nth-child(1){height:4px;animation-delay:0s}
+    .radio-bars b:nth-child(2){height:9px;animation-delay:.15s}
+    .radio-bars b:nth-child(3){height:6px;animation-delay:.3s}
+    .radio-bars b:nth-child(4){height:10px;animation-delay:.1s}
+    .radio-bars b:nth-child(5){height:5px;animation-delay:.25s}
+    .radio-bars.stopped b{animation-play-state:paused;background:rgba(255,255,255,.25);height:4px!important}
+    @keyframes rbar{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+    .radio-info-show{font-size:.76rem;font-weight:600;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .radio-info-host{font-size:.64rem;color:rgba(255,255,255,.42);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .radio-ctrl{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+    .radio-play{
+      width:38px;height:38px;border-radius:50%;
+      background:linear-gradient(135deg,#1d4ed8,#3b82f6);
+      border:none;color:#fff;font-size:1rem;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:0 2px 12px rgba(59,130,246,.5);
+      transition:transform .15s,box-shadow .15s;flex-shrink:0;
+    }
+    .radio-play:hover{transform:scale(1.1);box-shadow:0 4px 18px rgba(59,130,246,.7)}
+    .radio-play:active{transform:scale(.93)}
+    .radio-vol-grp{display:flex;align-items:center;gap:3px;}
+    .radio-vol-ico{font-size:.72rem;color:rgba(255,255,255,.4);}
+    .radio-vol{
+      width:68px;height:3px;
+      -webkit-appearance:none;appearance:none;
+      background:linear-gradient(to right,#60a5fa 0%,#60a5fa 90%,rgba(255,255,255,.25) 90%,rgba(255,255,255,.25) 100%);
+      border-radius:2px;cursor:pointer;
+    }
+    .radio-vol::-webkit-slider-thumb{
+      -webkit-appearance:none;appearance:none;
+      width:13px;height:13px;border-radius:50%;
+      background:#60a5fa;cursor:pointer;box-shadow:0 0 5px rgba(96,165,250,.7);
+    }
+    .radio-vol::-moz-range-thumb{
+      width:13px;height:13px;border-radius:50%;
+      background:#60a5fa;cursor:pointer;border:none;
+    }
+    .radio-status{
+      font-size:.64rem;color:rgba(255,255,255,.38);
+      display:flex;align-items:center;gap:4px;
+    }
+    .radio-status.err{color:#f87171;}
+    .radio-status a{color:#f87171;font-weight:600;}
+    #spWatchBtn:hover{
+      background:rgba(96,165,250,.28)!important;
+      border-color:rgba(96,165,250,.6)!important;
+      color:#bfdbfe!important;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════ LEFT PANEL ═══════════ -->
+<div class="left-panel">
+
+  <!-- Real Swahilipot Hub images from their official web presence -->
+  <div class="slide active" id="slide-0"
+    style="background-image:url('https://swahilipotwebsite.vercel.app/_next/image?url=%2Fimages%2Fslide1.jpg&w=3840&q=90')"></div>
+  <div class="slide" id="slide-1"
+    style="background-image:url('https://swahilipotwebsite.vercel.app/_next/image?url=%2Fimages%2Fslide2.jpg&w=3840&q=90')"></div>
+  <div class="slide" id="slide-2"
+    style="background-image:url('https://swahilipotwebsite.vercel.app/_next/image?url=%2Fimages%2Fslide3.jpg&w=3840&q=90')"></div>
+  <div class="slide" id="slide-3"
+    style="background-image:url('https://swahilipotwebsite.vercel.app/images/mwanakupona.jpg')"></div>
+  <div class="slide" id="slide-4"
+    style="background-image:url('https://swahilipotwebsite.vercel.app/images/casemanagement.png')"></div>
+
+  <div class="overlay-gradient"></div>
+  <div class="overlay-color"></div>
+  <div class="grid-fx"></div>
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+  <div class="orb orb-c"></div>
+  <div class="scan"></div>
+
+  <!-- Caption badge at top -->
+  <div class="slide-caption">
+    <div class="caption-pill" id="slideCaption">Swahilipot Hub Foundation · Mombasa, Kenya</div>
+  </div>
+
+  <!-- Vertical slide dots -->
+  <div class="slide-dots" id="slideDots"></div>
+
+  <!-- Hero content -->
+  <div class="left-content">
+
+    <!-- Swahilipot official logo — large and prominent -->
+    <div class="hero-logo">
+      <img id="heroLogo"
+        src="https://swahilipothub.co.ke/wp-content/uploads/2021/06/Swahilipot-logo-Trans.png"
+        alt="Swahilipot Hub Foundation Logo"
+        onerror="this.src='{% static 'images/swahilipot-logo.jfif' %}';this.onerror=null">
+    </div>
+
+    <div class="hero-title">Swahilipot<br><span>Hub Foundation</span></div>
+    <div class="hero-sub">Empowering Youth Through Technology, Arts &amp; Entrepreneurship in Coastal Kenya</div>
+
+    <div class="hero-meta">
+      <div class="meta-row">
+        <i class="bi bi-building"></i>
+        Mombasa County Governor's Office
+      </div>
+      <div class="meta-row">
+        <i class="bi bi-geo-alt-fill"></i>
+        Mombasa, Kenya
+      </div>
+      <div class="meta-row">
+        <i class="bi bi-telephone-fill"></i>
+        0114 635505
+      </div>
+      <div class="meta-row">
+        <i class="bi bi-envelope-fill"></i>
+        info@swahilipothub.co.ke
+      </div>
+      <div class="meta-row">
+        <i class="bi bi-globe2"></i>
+        <a href="https://www.swahilipothub.co.ke" target="_blank">www.swahilipothub.co.ke</a>
+      </div>
+      <div class="meta-row">
+        <i class="bi bi-broadcast"></i>
+        <a href="https://www.swahilipotfm.co.ke" target="_blank">www.swahilipotfm.co.ke</a>
+      </div>
+    </div>
+
+    <div class="features">
+      <div class="feat-pill"><i class="bi bi-geo-alt-fill"></i>GPS Attendance</div>
+      <div class="feat-pill"><i class="bi bi-people-fill"></i>Community</div>
+      <div class="feat-pill"><i class="bi bi-calendar-event-fill"></i>Events</div>
+      <div class="feat-pill"><i class="bi bi-check2-square"></i>Tasks</div>
+      <div class="feat-pill"><i class="bi bi-bar-chart-fill"></i>Reports</div>
+      <div class="feat-pill"><i class="bi bi-chat-dots-fill"></i>Communication</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════ RIGHT PANEL ═══════════ -->
+<div class="right-panel">
+
+  <!-- Brand header -->
+  <div class="brand-hdr">
+    <div class="brand-logo-box">
+      <img id="brandLogo"
+        src="https://swahilipothub.co.ke/wp-content/uploads/2021/06/Swahilipot-logo-Trans.png"
+        alt="Swahilipot Hub Logo"
+        onerror="this.src='{% static 'images/swahilipot-logo.jfif' %}';this.onerror=null">
+    </div>
+    <div class="brand-words">
+      <div class="brand-name">Swahilipot Hub Foundation</div>
+      <div class="brand-tag">Organisational Management Portal</div>
+      <div class="brand-loc">
+        <i class="bi bi-geo-alt-fill"></i>
+        Mombasa County Governor's Office, Mombasa
+      </div>
+      <div class="brand-links">
+        <a href="https://www.swahilipothub.co.ke" target="_blank"><i class="bi bi-globe2"></i>Website</a>
+        <a href="https://www.swahilipotfm.co.ke" target="_blank"><i class="bi bi-broadcast"></i>Radio FM</a>
+        <a href="https://twitter.com/swahilipothub" target="_blank"><i class="bi bi-twitter-x"></i>Twitter</a>
+        <a href="https://www.instagram.com/swahilipothub" target="_blank"><i class="bi bi-instagram"></i>Instagram</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Form header -->
+  <div class="form-eyebrow">
+    <div class="pulse-dot"></div>
+    <span>Secure Access</span>
+  </div>
+  <div class="form-title">Welcome back</div>
+  <div class="form-sub">Sign in to your Swahilipot Hub portal account</div>
+
+  {% if form.errors %}
+  <div class="err-box">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    Invalid username or password. Please try again.
+  </div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="fld">
+      <label class="fld-lbl" for="id_username">Username</label>
+      <div class="fld-wrap">
+        <i class="bi bi-person fld-ico"></i>
+        <input type="text" id="id_username" name="username" class="fld-input"
+               placeholder="Enter your username" autocomplete="username" autofocus>
+      </div>
+    </div>
+    <div class="fld">
+      <label class="fld-lbl" for="id_password">Password</label>
+      <div class="fld-wrap">
+        <i class="bi bi-lock fld-ico"></i>
+        <input type="password" id="id_password" name="password" class="fld-input"
+               placeholder="Enter your password" autocomplete="current-password">
+      </div>
+    </div>
+    <button type="submit" class="btn-signin">
+      <i class="bi bi-box-arrow-in-right"></i>Sign In to Portal
+    </button>
+  </form>
+
+  <div style="text-align:center;margin-top:14px">
+    <a href="{% url 'accounts:password_recover' %}"
+       style="font-size:.82rem;color:#1e40af;text-decoration:none;font-weight:600;">
+      <i class="bi bi-key me-1"></i>Forgot your password?
+    </a>
+  </div>
+
+  <div class="contact-strip">
+    <div class="c-chip"><i class="bi bi-building"></i>Mombasa County Governor's Office</div>
+    <div class="c-chip"><i class="bi bi-telephone"></i>0114 635505</div>
+    <div class="c-chip"><i class="bi bi-envelope"></i>info@swahilipothub.co.ke</div>
+    <div class="c-chip"><i class="bi bi-globe2"></i>
+      <a href="https://www.swahilipothub.co.ke" target="_blank">swahilipothub.co.ke</a>
+    </div>
+    <div class="c-chip"><i class="bi bi-broadcast"></i>
+      <a href="https://www.swahilipotfm.co.ke" target="_blank">swahilipotfm.co.ke</a>
+    </div>
+  </div>
+
+  <!-- ── Swahilipot FM Radio Player ── -->
+  <div class="radio-player" id="radioPlayer">
+
+    <!-- Header: click anywhere to expand/collapse -->
+    <div class="radio-header" id="radioHeader" role="button" tabindex="0"
+         aria-expanded="false" aria-label="Swahilipot FM Live Radio">
+      <div class="radio-title">
+        <span class="radio-dot"></span>
+        <span class="radio-label">Swahilipot FM — Live</span>
+      </div>
+      <div class="radio-actions">
+        <a href="https://www.swahilipotfm.co.ke" target="_blank"
+           class="radio-ext-link" title="Open Swahilipot FM website"
+           onclick="event.stopPropagation()">
+          <i class="bi bi-box-arrow-up-right"></i>
+        </a>
+        <button class="radio-arrow-btn" id="radioArrowBtn" type="button"
+                aria-label="Toggle player"
+                onclick="event.stopPropagation(); spRadioToggle()">
+          <i class="bi bi-chevron-down" id="radioArrowIcon"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Expandable body -->
+    <div class="radio-body" id="radioBody" style="display:none">
+
+      <!-- Show art + info + controls row -->
+      <div class="radio-row">
+        <img class="radio-art" id="spArt"
+             src="https://www.swahilipotfm.co.ke/show-banners/breakfast-club.jpeg"
+             alt="Show art"
+             onerror="this.style.display='none'">
+
+        <div class="radio-info">
+          <div class="radio-info-top">Swahilipot FM</div>
+          <div class="radio-info-mid">
+            <div class="radio-bars stopped" id="spBars">
+              <b></b><b></b><b></b><b></b><b></b>
+            </div>
+            <span id="spNowLabel">Now Playing:</span>
+          </div>
+          <div class="radio-info-show" id="spShow">Live Broadcast</div>
+          <div class="radio-info-host" id="spHost">91.7 FM · Mombasa, Kenya</div>
+        </div>
+
+        <!-- Play/Pause + Volume -->
+        <div class="radio-ctrl">
+          <button class="radio-play" id="spPlayBtn" type="button"
+                  title="Play / Pause" aria-label="Play Swahilipot FM">
+            <i class="bi bi-play-fill" id="spPlayIcon"></i>
+          </button>
+          <div class="radio-vol-grp">
+            <i class="bi bi-volume-down radio-vol-ico"></i>
+            <input class="radio-vol" id="spVol" type="range"
+                   min="0" max="1" step="0.05" value="0.9"
+                   aria-label="Volume">
+          </div>
+        </div>
+      </div>
+
+      <!-- Status bar -->
+      <div class="radio-status" id="spStatus" style="margin-top:8px;">
+        <i class="bi bi-info-circle" id="spStatusIcon"></i>
+        <span id="spStatusTxt">Press ▶ to listen live · Swahilipot FM 91.7</span>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="login-footer">
+    <i class="bi bi-shield-check me-1"></i>
+    Secured portal &mdash; &copy; 2026 <strong>SAH-VisionDevs</strong>. All rights reserved.
+  </div>
+
+</div>
+
+<script>
+// ── Slideshow ──────────────────────────────────────────────────────────────
+const slides    = document.querySelectorAll('.slide');
+const dotsWrap  = document.getElementById('slideDots');
+const captionEl = document.getElementById('slideCaption');
+const captions  = [
+  'Swahilipot Hub Foundation · Mombasa, Kenya',
+  'Empowering Youth Through Technology',
+  'Arts, Culture &amp; Entrepreneurship',
+  'Community Programs · Coastal Region',
+  'Building the Next Generation of Leaders',
+];
+let current = 0;
+
+slides.forEach(function(_, i) {
+  const d = document.createElement('div');
+  d.className = 'dot' + (i === 0 ? ' active' : '');
+  d.addEventListener('click', function() { goTo(i); });
+  dotsWrap.appendChild(d);
+});
+
+function goTo(n) {
+  slides[current].classList.remove('active');
+  dotsWrap.children[current].classList.remove('active');
+  current = (n + slides.length) % slides.length;
+  slides[current].classList.add('active');
+  dotsWrap.children[current].classList.add('active');
+  captionEl.textContent = captions[current] || captions[0];
+}
+
+setInterval(function() { goTo(current + 1); }, 5000);
+
+// Swahilipot FM Radio Player
+(function () {
+  "use strict";
+
+  /*
+   * Direct stream URL for Swahilipot FM 91.7 Mombasa
+   * Source: swahilipotfm.out.airtime.pro (LibreTime/Airtime streaming server)
+   * Format: MP3 live stream — works directly with HTML5 Audio, no CORS issues.
+   * Fallback: .m3u playlist from the same server.
+   */
+  var STREAM_PRIMARY  = "https://swahilipotfm.out.airtime.pro:8000/swahilipotfm_b";
+  var STREAM_FALLBACK = "https://swahilipotfm.out.airtime.pro:8000/swahilipotfm_b.m3u";
+
+  var SHOWS = [
+    { t:"The Breakfast Club", h:"Salim Barisa, Shamsa Abdi, Joshua Wekesa",
+      a:"https://www.swahilipotfm.co.ke/show-banners/breakfast-club.jpeg",  hrs:[7,8,9] },
+    { t:"Kick Off",           h:"Japheth Makanaki, Austin Moraiz, Brian Tumaini",
+      a:"https://www.swahilipotfm.co.ke/show-banners/kickoff.png",          hrs:[10] },
+    { t:"Swahilipot Cafe",    h:"Dorcas Uwiyera, Shufaa Yakut, DJ Kams",
+      a:"https://www.swahilipotfm.co.ke/show-banners/swahilipot-cafe.jpeg", hrs:[11,12,13] },
+    { t:"The Night Shift",    h:"Bahati Ngazi, Mama Zakiya",
+      a:"https://www.swahilipotfm.co.ke/show-banners/the-night-shift.png",  hrs:[20,21,22,23,0,1,2,3,4,5,6] },
+  ];
+
+  /* DOM refs */
+  var body      = document.getElementById("radioBody");
+  var header    = document.getElementById("radioHeader");
+  var arrowIcon = document.getElementById("radioArrowIcon");
+  var playBtn   = document.getElementById("spPlayBtn");
+  var playIcon  = document.getElementById("spPlayIcon");
+  var volSlider = document.getElementById("spVol");
+  var bars      = document.getElementById("spBars");
+  var artEl     = document.getElementById("spArt");
+  var showEl    = document.getElementById("spShow");
+  var hostEl    = document.getElementById("spHost");
+  var statusIco = document.getElementById("spStatusIcon");
+  var statusTxt = document.getElementById("spStatusTxt");
+
+  /* State */
+  var isOpen    = false;
+  var isPlaying = false;
+  var tryFallback = false;
+  var audioEl   = null;
+
+  /* Set current show by time of day */
+  (function () {
+    var h = new Date().getHours();
+    for (var i = 0; i < SHOWS.length; i++) {
+      if (SHOWS[i].hrs.indexOf(h) !== -1) {
+        if (artEl)  artEl.src          = SHOWS[i].a;
+        if (showEl) showEl.textContent = SHOWS[i].t;
+        if (hostEl) hostEl.textContent = SHOWS[i].h;
+        return;
+      }
+    }
+    if (showEl) showEl.textContent = "Live Broadcast";
+    if (hostEl) hostEl.textContent = "91.7 FM \u00b7 Mombasa, Kenya";
+  })();
+
+  function scrollDown() {
+    setTimeout(function () {
+      var p = document.querySelector(".right-panel");
+      if (p) p.scrollTop = p.scrollHeight;
+    }, 80);
+  }
+  function setStatus(ico, txt) {
+    if (statusIco) statusIco.className = "bi " + ico;
+    if (statusTxt) statusTxt.textContent = txt;
+  }
+  function updateVolSlider(v) {
+    var pct = Math.round(v * 100);
+    volSlider.style.background =
+      "linear-gradient(to right,#60a5fa 0%,#60a5fa " + pct +
+      "%,rgba(255,255,255,.25) " + pct + "%,rgba(255,255,255,.25) 100%)";
+  }
+
+  /* Build the HTML5 Audio element once */
+  function getAudio() {
+    if (!audioEl) {
+      audioEl = new Audio();
+      audioEl.preload = "none";
+
+      audioEl.addEventListener("playing", function () {
+        isPlaying = true;
+        playIcon.className = "bi bi-pause-fill";
+        if (bars) bars.classList.remove("stopped");
+        setStatus("bi-broadcast", "\u25cf Live \u00b7 Swahilipot FM 91.7");
+      });
+      audioEl.addEventListener("waiting",  function () { setStatus("bi-hourglass-split", "Buffering\u2026"); });
+      audioEl.addEventListener("stalled",  function () { setStatus("bi-hourglass-split", "Buffering\u2026"); });
+      audioEl.addEventListener("pause", function () {
+        if (!isPlaying) return;
+        isPlaying = false;
+        playIcon.className = "bi bi-play-fill";
+        if (bars) bars.classList.add("stopped");
+        setStatus("bi-info-circle", "Paused \u00b7 press \u25b6 to resume");
+      });
+      audioEl.addEventListener("error", function () {
+        if (!tryFallback) {
+          /* Primary failed — try fallback once */
+          tryFallback = true;
+          audioEl.src = STREAM_FALLBACK;
+          audioEl.load();
+          audioEl.play().catch(function(){});
+          setStatus("bi-hourglass-split", "Retrying\u2026");
+        } else {
+          isPlaying = false;
+          tryFallback = false;
+          /* Clear src so next play attempt does a fresh load */
+          audioEl.src = "";
+          playIcon.className = "bi bi-play-fill";
+          if (bars) bars.classList.add("stopped");
+          setStatus("bi-wifi-off", "Stream error \u00b7 press \u25b6 to retry");
+        }
+      });
+    }
+    return audioEl;
+  }
+
+  /* Toggle panel open/close */
+  window.spRadioToggle = function () {
+    isOpen = !isOpen;
+    body.style.display  = isOpen ? "block" : "none";
+    arrowIcon.className = isOpen ? "bi bi-chevron-up" : "bi bi-chevron-down";
+    header.setAttribute("aria-expanded", String(isOpen));
+    if (isOpen) scrollDown();
+  };
+  header.addEventListener("click", window.spRadioToggle);
+  header.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); window.spRadioToggle(); }
+  });
+
+  /* Play / Pause */
+  playBtn.addEventListener("click", function () {
+    if (isPlaying) {
+      /* Pause — just pause, keep src so resume works instantly */
+      getAudio().pause();
+    } else {
+      var a = getAudio();
+      a.volume = parseFloat(volSlider.value);
+      setStatus("bi-hourglass-split", "Connecting\u2026");
+
+      /* Only set src + load on first play (or after an error reset) */
+      if (!a.src || a.src === window.location.href) {
+        tryFallback = false;
+        a.src = STREAM_PRIMARY;
+        a.load();
+      }
+
+      /* For a live stream, always call play() — it resumes or starts */
+      var p = a.play();
+      if (p && typeof p.then === "function") {
+        p.catch(function () {
+          setStatus("bi-info-circle", "Press \u25b6 to start audio");
+        });
+      }
+    }
+  });
+
+  /* Volume — live response, fills track */
+  volSlider.addEventListener("input", function () {
+    var v = parseFloat(volSlider.value);
+    var a = getAudio();
+    if (a.muted && v > 0) a.muted = false;
+    a.volume = v;
+    updateVolSlider(v);
+  });
+
+  /* Set initial slider fill at 90% */
+  updateVolSlider(parseFloat(volSlider.value));
+
+})();
+</script>
+</body>
+</html>

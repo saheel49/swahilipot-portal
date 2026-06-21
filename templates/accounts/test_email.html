@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-envelope-check me-2"></i>Email Configuration Test</h1>
+  <a href="{% url 'accounts:user_directory' %}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Back to Users
+  </a>
+</div>
+
+<!-- Status: current backend -->
+<div class="panel mb-3 py-3 px-4 d-flex align-items-center gap-3">
+  {% if is_console %}
+  <span style="font-size:1.5rem">🖥️</span>
+  <div>
+    <div class="fw-bold text-warning">Console Backend (Dev Mode)</div>
+    <div class="text-muted small">Emails are printed to the terminal — not sent to actual inboxes.
+      To send real emails, add your Gmail App Password to the <code>.env</code> file and restart the server.</div>
+  </div>
+  {% else %}
+  <span style="font-size:1.5rem">📧</span>
+  <div>
+    <div class="fw-bold text-success">Gmail SMTP Active</div>
+    <div class="text-muted small">Emails will be sent via Gmail SMTP. Backend: <code>{{ email_backend }}</code></div>
+  </div>
+  {% endif %}
+</div>
+
+{% if result %}
+  {% if result.0 == "success" %}
+  <div class="alert alert-success d-flex align-items-center gap-2">
+    <i class="bi bi-check-circle-fill fs-5"></i>
+    <div><strong>Email sent!</strong> Check <strong>{{ result.1 }}</strong> inbox (and spam folder).</div>
+  </div>
+  {% elif result.0 == "console" %}
+  <div class="alert alert-warning d-flex align-items-center gap-2">
+    <i class="bi bi-terminal fs-5"></i>
+    <div><strong>Console mode:</strong> the email was printed to the server terminal, not sent to {{ result.1 }}.
+      Add your Gmail App Password to <code>.env</code> to enable real email.</div>
+  </div>
+  {% else %}
+  <div class="alert alert-danger">
+    <strong><i class="bi bi-x-circle me-1"></i>Email failed:</strong><br>
+    <code>{{ result.1 }}</code>
+    <hr class="my-2">
+    <p class="mb-0 small">Common fixes:</p>
+    <ul class="mb-0 small">
+      <li>Make sure 2-Step Verification is <strong>ON</strong> in your Google Account</li>
+      <li>Use a <strong>Gmail App Password</strong> (not your normal password) — get one at <a href="https://myaccount.google.com/apppasswords" target="_blank">myaccount.google.com/apppasswords</a></li>
+      <li>Check that <code>DJANGO_EMAIL_HOST_USER</code> and <code>DJANGO_EMAIL_HOST_PASSWORD</code> in <code>.env</code> are correct</li>
+      <li>Restart the server after editing <code>.env</code></li>
+    </ul>
+  </div>
+  {% endif %}
+{% endif %}
+
+<div class="panel" style="max-width:500px">
+  <h3 class="mb-3" style="font-size:.95rem"><i class="bi bi-send me-2 text-primary"></i>Send Test Email</h3>
+  <form method="post">
+    {% csrf_token %}
+    <div class="mb-3">
+      <label class="form-label fw-semibold small text-uppercase" style="letter-spacing:.6px">Send To</label>
+      <input type="email" name="to_email" class="form-control"
+             value="{{ default_to }}" placeholder="recipient@gmail.com" required>
+      <div class="form-text">Enter any email address to test delivery.</div>
+    </div>
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-send me-1"></i>Send Test Email
+    </button>
+  </form>
+</div>
+
+<div class="panel mt-3" style="max-width:500px">
+  <h3 class="mb-2" style="font-size:.95rem"><i class="bi bi-gear me-2 text-secondary"></i>Setup Instructions</h3>
+  <ol class="small text-muted" style="line-height:2">
+    <li>Open <a href="https://myaccount.google.com/security" target="_blank">myaccount.google.com/security</a></li>
+    <li>Enable <strong>2-Step Verification</strong> (required)</li>
+    <li>Go to <a href="https://myaccount.google.com/apppasswords" target="_blank">App Passwords</a></li>
+    <li>Create a new App Password for <em>Mail / Windows Computer</em></li>
+    <li>Copy the 16-character password</li>
+    <li>Open <code>.env</code> in the project root and set:<br>
+        <code>DJANGO_EMAIL_HOST_PASSWORD=yoursixteencharpass</code></li>
+    <li>Restart the server: <code>python manage.py runserver</code></li>
+    <li>Come back here and send a test email to confirm it works</li>
+  </ol>
+</div>
+{% endblock %}

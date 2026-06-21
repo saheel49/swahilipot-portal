@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:520px;margin:60px auto">
+  <div class="panel" style="border:2px solid #fecaca">
+    <div style="font-size:3rem;text-align:center;margin-bottom:16px">🗑️</div>
+    <h2 style="text-align:center;color:#991b1b;margin-bottom:8px">Delete Event</h2>
+    <p class="text-muted text-center mb-4">
+      Are you sure you want to permanently delete
+      <strong>{{ event.title }}</strong>?<br>
+      <span class="small">This will remove the event, its QR code, all registrations and attendance records. This cannot be undone.</span>
+    </p>
+
+    <div class="d-flex gap-3 justify-content-center flex-wrap mb-2">
+      <div class="text-center px-3 py-2 rounded" style="background:#fef2f2;flex:1;min-width:120px">
+        <div style="font-size:1.4rem;font-weight:800;color:#dc2626">{{ event.form_response_count }}</div>
+        <div class="small text-muted">Registrations</div>
+      </div>
+      <div class="text-center px-3 py-2 rounded" style="background:#fef2f2;flex:1;min-width:120px">
+        <div style="font-size:1.4rem;font-weight:800;color:#dc2626">{{ event.capacity }}</div>
+        <div class="small text-muted">Capacity</div>
+      </div>
+      <div class="text-center px-3 py-2 rounded" style="background:#fef2f2;flex:1;min-width:120px">
+        <div style="font-size:.85rem;font-weight:700;color:#dc2626">{{ event.start_date|date:"M d, Y" }}</div>
+        <div class="small text-muted">Event Date</div>
+      </div>
+    </div>
+
+    <hr class="my-3">
+
+    <div class="d-flex gap-3 justify-content-center">
+      <a href="{% url 'events:detail' event.pk %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Cancel
+      </a>
+      <form method="post" style="margin:0">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">
+          <i class="bi bi-trash-fill me-1"></i>Yes, Delete Event
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,427 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div id="event-data"
+     data-pk="{{ event.pk }}"
+     data-capacity="{{ event.capacity }}"
+     data-is-full="{% if event.is_full %}true{% else %}false{% endif %}"
+     data-reg-count="{{ event.form_response_count }}"
+     data-att-count="{{ event.attendance_count }}"
+     style="display:none"
+     aria-hidden="true"></div>
+
+<div class="page-header">
+  <h1>{{ event.title }}</h1>
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    {% if event.is_past %}
+      <span class="badge text-bg-secondary" id="status-badge">Event Ended</span>
+    {% elif event.is_full %}
+      <span class="badge text-bg-danger" id="status-badge">Fully Booked</span>
+    {% else %}
+      <span class="badge text-bg-success" id="status-badge">Upcoming</span>
+    {% endif %}
+    <span class="badge bg-primary" id="reg-count-badge">
+      {{ event.form_response_count }}/{{ event.capacity }} registered
+    </span>
+  </div>
+</div>
+
+<div class="grid-2">
+
+  <!-- ── LEFT PANEL — Event details + registration ──────────────────── -->
+  <div class="panel">
+    {% if event.banner %}
+    <img src="{{ event.banner.url }}" class="img-fluid rounded mb-3 event-banner" alt="{{ event.title }}">
+    {% endif %}
+
+    <p>{{ event.description }}</p>
+    <p class="mb-3">
+      <i class="bi bi-geo-alt me-1 text-primary"></i><strong>Location:</strong> {{ event.location }}<br>
+      <i class="bi bi-calendar me-1 text-primary"></i><strong>Starts:</strong> {{ event.start_date|date:"M d, Y H:i" }}<br>
+      <i class="bi bi-calendar-check me-1 text-primary"></i><strong>Ends:</strong> {{ event.end_date|date:"M d, Y H:i" }}
+      {% if user.can_manage_events %}
+      <br><i class="bi bi-crosshair me-1 text-primary"></i><strong>Check-in radius:</strong>
+      {% if event.venue_latitude and event.venue_longitude %}
+        <span class="text-success fw-semibold">{{ event.venue_radius_meters }} m</span>
+        <span class="text-muted small">({{ event.venue_latitude }}, {{ event.venue_longitude }})</span>
+      {% else %}
+        <span class="text-warning fw-semibold">⚠ Venue GPS not set — check-in disabled</span>
+      {% endif %}
+      {% endif %}
+    </p>
+
+    <!-- Status / registration CTA -->
+    <div id="status-alert-box">
+      {% if event.is_past %}
+      <div class="alert alert-secondary py-2 px-3 mb-3">
+        <i class="bi bi-calendar-x me-1"></i>
+        This event has ended. Registration is closed.
+      </div>
+      {% elif event.is_full %}
+      <div class="alert alert-danger py-2 px-3 mb-3">
+        <i class="bi bi-people-fill me-1"></i>
+        <strong>This event is fully booked.</strong>
+        Maximum capacity has been reached.
+      </div>
+      {% elif registered %}
+      <div class="alert alert-success py-2 px-3 mb-3">
+        <i class="bi bi-check-circle-fill me-1"></i>
+        <strong>You are registered</strong> for this event.
+        {% if checked_in %}
+          <br><i class="bi bi-geo-fill me-1"></i>Physical attendance confirmed.
+        {% else %}
+          <br><span class="small text-muted">Use the Check In button on event day when you arrive.</span>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="alert alert-info py-2 px-3 mb-3">
+        <i class="bi bi-person-plus me-1"></i>
+        Register below to secure your spot.
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Register button — only shown when open and not yet registered -->
+    {% if not event.is_past and not registered %}
+    <div id="register-btn-wrap">
+      {% if event.is_full %}
+      <button class="btn btn-danger w-100" disabled>
+        <i class="bi bi-x-circle me-1"></i>Registration Closed — Fully Booked
+      </button>
+      {% else %}
+      <a href="{% url 'events:register' event.pk %}" class="btn btn-primary w-100" id="register-btn">
+        <i class="bi bi-person-plus me-2"></i>Register for This Event
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Check-in for registered users — redirects to Attendance page -->
+    {% if registered and not event.is_past and not checked_in %}
+    <div class="mt-3">
+      {% if not event.venue_latitude or not event.venue_longitude %}
+      <div class="alert alert-warning py-2 px-3">
+        <i class="bi bi-geo-alt me-1"></i>
+        Venue GPS has not been set for this event. An admin must edit the event to enable check-in.
+      </div>
+      {% elif not event_started %}
+      <button class="btn btn-secondary w-100" disabled>
+        <i class="bi bi-lock me-2"></i>Check-in opens on event day
+      </button>
+      <div class="text-muted small text-center mt-2">
+        <i class="bi bi-calendar-event me-1"></i>
+        Event starts <strong>{{ event.start_date|date:"M d, Y" }}</strong>
+        at <strong>{{ event.start_date|date:"H:i" }}</strong>
+      </div>
+      {% else %}
+      <a href="{% url 'attendance:home' %}" class="btn btn-success w-100">
+        <i class="bi bi-geo-alt-fill me-2"></i>Check In via Attendance
+      </a>
+      <div class="text-muted small text-center mt-2">
+        <i class="bi bi-info-circle me-1"></i>
+        You will be checked in at the venue through the Attendance page.
+        Must be within <strong>{{ event.venue_radius_meters }} m</strong> of
+        <strong>{{ event.location }}</strong>.
+      </div>
+      {% endif %}
+    </div>
+    {% elif checked_in %}
+    <div class="mt-3">
+      <div class="alert alert-success py-2 px-3 mb-0">
+        <i class="bi bi-geo-fill me-1"></i>
+        <strong>Attendance confirmed</strong> — you checked in at the venue.
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Admin controls -->
+    {% if user.can_manage_events %}
+    <div class="mt-4 pt-3" style="border-top:1px solid #e5e7eb">
+
+      <!-- Action buttons row -->
+      <div class="d-flex flex-wrap gap-2 mb-3">
+        <a class="btn btn-outline-secondary btn-sm" href="{% url 'events:edit' event.pk %}">
+          <i class="bi bi-pencil me-1"></i>Edit Event
+        </a>
+        <a class="btn btn-outline-warning btn-sm" href="{% url 'events:no_shows' event.pk %}">
+          <i class="bi bi-person-x me-1"></i>No-Shows
+        </a>
+        <a class="btn btn-outline-secondary btn-sm" href="{% url 'events:not_registered' event.pk %}">
+          <i class="bi bi-person-slash me-1"></i>Not Registered
+        </a>
+        <a class="btn btn-outline-danger btn-sm ms-auto" href="{% url 'events:delete' event.pk %}">
+          <i class="bi bi-trash me-1"></i>Delete
+        </a>
+      </div>
+
+      <!-- Report downloads grid -->
+      <div class="event-reports-grid">
+
+        <div class="event-report-card">
+          <div class="event-report-label">
+            <i class="bi bi-person-check-fill text-primary me-1"></i>
+            Registrations
+            <span class="badge bg-primary ms-1">{{ event.form_response_count }}</span>
+          </div>
+          <div class="d-flex gap-1 mt-2">
+            <a href="{% url 'events:report' event.pk 'pdf' %}" class="btn btn-outline-danger btn-sm flex-fill">
+              <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+            </a>
+            <a href="{% url 'events:report' event.pk 'xlsx' %}" class="btn btn-outline-success btn-sm flex-fill">
+              <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+            </a>
+          </div>
+        </div>
+
+        <div class="event-report-card">
+          <div class="event-report-label">
+            <i class="bi bi-person-x text-danger me-1"></i>
+            No-Shows
+          </div>
+          <div class="d-flex gap-1 mt-2">
+            <a href="{% url 'events:no_shows_report' event.pk 'pdf' %}" class="btn btn-outline-danger btn-sm flex-fill">
+              <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+            </a>
+            <a href="{% url 'events:no_shows_report' event.pk 'xlsx' %}" class="btn btn-outline-success btn-sm flex-fill">
+              <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+            </a>
+          </div>
+        </div>
+
+        <div class="event-report-card">
+          <div class="event-report-label">
+            <i class="bi bi-person-slash text-secondary me-1"></i>
+            Not Registered
+          </div>
+          <div class="d-flex gap-1 mt-2">
+            <a href="{% url 'events:not_registered_report' event.pk 'pdf' %}" class="btn btn-outline-danger btn-sm flex-fill">
+              <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+            </a>
+            <a href="{% url 'events:not_registered_report' event.pk 'xlsx' %}" class="btn btn-outline-success btn-sm flex-fill">
+              <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+            </a>
+          </div>
+        </div>
+
+      </div><!-- end event-reports-grid -->
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── RIGHT PANEL — Live counter ─────────────────────────────────── -->
+  <div class="panel text-center">
+
+    <h2 class="mb-1" style="font-size:1.1rem;font-weight:700">
+      <i class="bi bi-people-fill me-2 text-primary"></i>Live Registrations
+    </h2>
+    <p class="text-muted small mb-4" id="counter-sub">
+      {% if event.is_past %}
+        Event ended — final registration count.
+      {% elif event.is_full %}
+        Maximum capacity reached — registration closed.
+      {% else %}
+        Updates every 10 seconds.
+      {% endif %}
+    </p>
+
+    <!-- Capacity progress bar -->
+    <div class="capacity-bar-wrap mb-3">
+      <div class="capacity-bar-track">
+        <div class="capacity-bar-fill {% if event.is_full %}full{% endif %}"
+             id="cap-bar"
+             data-width="{% widthratio event.form_response_count event.capacity 100 %}"
+             style="width:0%">
+        </div>
+      </div>
+      <div class="capacity-bar-label mt-1">
+        <span id="cap-count">{{ event.form_response_count }}</span>
+        <span> / {{ event.capacity }} spots filled</span>
+        <span id="cap-full-label" class="text-danger fw-bold ms-1{% if not event.is_full %} d-none{% endif %}"> — FULL</span>
+      </div>
+    </div>
+
+    <!-- Big number counter -->
+    <div class="reg-counter mb-3" id="reg-counter-card">
+      <div class="reg-counter-val" id="dc-form">{{ event.form_response_count }}</div>
+      <div class="reg-counter-lbl">
+        <i class="bi bi-person-check-fill me-1"></i>Registered
+      </div>
+    </div>
+
+    <!-- Attended count (geofence check-ins) -->
+    <div class="att-counter mb-3">
+      <div class="att-counter-val" id="dc-attended">{{ event.attendance_count }}</div>
+      <div class="att-counter-lbl">
+        <i class="bi bi-geo-fill me-1"></i>Checked In (at venue)
+      </div>
+    </div>
+
+    <!-- Refresh indicator -->
+    {% if not event.is_past %}
+    <div class="dc-refresh-label">
+      <i class="bi bi-arrow-clockwise me-1" id="dc-spin"></i>Live — refreshes every 10 s
+    </div>
+    {% endif %}
+
+  </div><!-- end right panel -->
+</div>
+
+<style>
+/* Capacity bar */
+.capacity-bar-wrap { text-align: left; }
+.capacity-bar-track {
+  height: 12px;
+  background: #e5e7eb;
+  border-radius: 20px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.capacity-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1e40af, #3b82f6);
+  border-radius: 20px;
+  transition: width .6s ease;
+  min-width: 0;
+}
+.capacity-bar-fill.full { background: linear-gradient(90deg, #dc2626, #ef4444); }
+.capacity-bar-label { font-size: .8rem; color: #6b7280; text-align: center; }
+
+/* Registration counter */
+.reg-counter {
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 16px 10px;
+}
+.reg-counter.full-state { background: #fef2f2; border-color: #fca5a5; }
+.reg-counter-val {
+  font-size: 3rem;
+  font-weight: 800;
+  color: #065f46;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.reg-counter.full-state .reg-counter-val { color: #991b1b; }
+.reg-counter-lbl { font-size: .72rem; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .4px; }
+
+/* Attendance counter */
+.att-counter {
+  background: #eff6ff;
+  border: 1.5px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 12px 10px;
+}
+.att-counter-val { font-size: 2rem; font-weight: 800; color: #1e40af; line-height: 1; margin-bottom: 3px; }
+.att-counter-lbl { font-size: .72rem; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .4px; }
+
+.dc-refresh-label { font-size: .7rem; color: #9ca3af; text-align: center; }
+.event-banner { max-height: 180px; object-fit: cover; width: 100%; }
+
+@keyframes dc-flash-anim { 0%{transform:scale(1.25);opacity:.7} 100%{transform:scale(1);opacity:1} }
+.dc-flash { animation: dc-flash-anim .5s ease-out; }
+
+/* ── Event report download cards ── */
+.event-reports-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+@media (max-width: 640px) { .event-reports-grid { grid-template-columns: 1fr; } }
+.event-report-card {
+  background: #f8faff;
+  border: 1.5px solid #e0e7ff;
+  border-radius: 10px;
+  padding: 12px 14px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.event-report-card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 2px 8px rgba(30,64,175,.1);
+}
+.event-report-label {
+  font-size: .8rem;
+  font-weight: 700;
+  color: #374151;
+  display: flex;
+  align-items: center;
+}
+</style>
+
+{% if not event.is_past %}
+<script>
+(function () {
+  var d        = document.getElementById('event-data');
+  var eventPk  = d ? parseInt(d.dataset.pk, 10)       : 0;
+  var capacity = d ? parseInt(d.dataset.capacity, 10)  : 1;
+  var isFull   = d ? d.dataset.isFull === 'true'       : false;
+
+  var badge       = document.getElementById('reg-count-badge');
+  var statusBadge = document.getElementById('status-badge');
+  var statusBox   = document.getElementById('status-alert-box');
+  var capBar      = document.getElementById('cap-bar');
+  var capCount    = document.getElementById('cap-count');
+  var capFullLbl  = document.getElementById('cap-full-label');
+  var regCounter  = document.getElementById('reg-counter-card');
+  var dcForm      = document.getElementById('dc-form');
+  var dcSpin      = document.getElementById('dc-spin');
+  var counterSub  = document.getElementById('counter-sub');
+  var registerWrap = document.getElementById('register-btn-wrap');
+
+  function applyFull() {
+    if (isFull) return;
+    isFull = true;
+    if (statusBadge) { statusBadge.textContent = 'Fully Booked'; statusBadge.className = 'badge text-bg-danger'; }
+    if (statusBox) {
+      statusBox.innerHTML =
+        '<div class="alert alert-danger py-2 px-3 mb-3">' +
+        '<i class="bi bi-people-fill me-1"></i>' +
+        '<strong>This event is now fully booked.</strong> Maximum capacity reached.</div>';
+    }
+    if (registerWrap) {
+      registerWrap.innerHTML =
+        '<button class="btn btn-danger w-100" disabled>' +
+        '<i class="bi bi-x-circle me-1"></i>Registration Closed \u2014 Fully Booked</button>';
+    }
+    if (capBar)    capBar.classList.add('full');
+    if (capFullLbl) capFullLbl.classList.remove('d-none');
+    if (regCounter) regCounter.classList.add('full-state');
+    if (counterSub) counterSub.textContent = 'Maximum capacity reached \u2014 registration closed.';
+  }
+
+  function animateSpin() {
+    if (!dcSpin) return;
+    dcSpin.style.transition = 'transform .4s';
+    dcSpin.style.transform  = 'rotate(360deg)';
+    setTimeout(function () { dcSpin.style.transition = 'none'; dcSpin.style.transform = 'rotate(0deg)'; }, 450);
+  }
+
+  function poll() {
+    animateSpin();
+    fetch('/events/' + eventPk + '/registration-count/', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (data) {
+      if (!data) return;
+      var count = data.form_count;
+      if (badge)  badge.textContent  = count + '/' + capacity + ' registered';
+      var pct = capacity > 0 ? Math.min(100, Math.round(count / capacity * 100)) : 0;
+      if (capBar)  capBar.style.width = pct + '%';
+      if (capCount) capCount.textContent = count;
+      if (dcForm && dcForm.textContent !== String(count)) {
+        dcForm.classList.add('dc-flash');
+        dcForm.textContent = count;
+        setTimeout(function () { dcForm.classList.remove('dc-flash'); }, 600);
+      }
+      if (data.is_full) applyFull();
+    })
+    .catch(function () {});
+  }
+
+  poll();
+  setInterval(poll, 10000);
+})();
+</script>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}{% endblock %}

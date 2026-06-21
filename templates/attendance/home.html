@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-geo-alt-fill me-2"></i>Attendance</h1>
+  <div class="d-flex gap-2 align-items-center">
+    {% if user.is_portal_admin %}<a class="btn btn-sm btn-outline-primary" href="{% url 'attendance:sites' %}"><i class="bi bi-pin-map me-1"></i>Project Sites</a>{% endif %}
+  </div>
+</div>
+
+<!-- Live Clock -->
+<div class="attendance-clock-bar">
+  <div class="clock-group">
+    <span class="clock-label">Current Time</span>
+    <span class="clock-display" id="liveClock">--:--:--</span>
+  </div>
+  <div class="clock-group">
+    <span class="clock-label">Date</span>
+    <span class="clock-display" id="liveDate">--</span>
+  </div>
+  {% if current %}
+  <div class="clock-group">
+    <span class="clock-label">Time In</span>
+    <span class="clock-display clock-accent">{{ current.check_in_time|date:"H:i" }}</span>
+  </div>
+  <div class="clock-group">
+    <span class="clock-label">Duration</span>
+    <span class="clock-display clock-green" id="liveDuration" data-checkin="{{ current.check_in_time|date:'c' }}">--:--</span>
+  </div>
+  {% else %}
+  <div class="clock-group">
+    <span class="clock-label">Hours Today</span>
+    <span class="clock-display clock-green">{{ hours_today|floatformat:2 }}h</span>
+  </div>
+  {% endif %}
+</div>
+
+<div class="grid-2">
+  <!-- Check-in / Check-out Panel -->
+  <div class="panel">
+    <h2><i class="bi bi-geo-alt me-2"></i>GPS Attendance</h2>
+    <p class="text-muted mb-3">Approved site: <strong>{{ site.name|default:"Not configured" }}</strong></p>
+
+    {% if active_event and required_site and not current %}
+    <!-- Event venue requirement banner -->
+    <div class="alert alert-warning py-2 px-3 mb-3" style="border-left:4px solid #f59e0b">
+      <div class="d-flex align-items-start gap-2">
+        <i class="bi bi-calendar-event-fill text-warning mt-1 flex-shrink-0"></i>
+        <div>
+          <strong>Event today: {{ active_event.title }}</strong><br>
+          <span class="small">
+            You are registered for this event. You must check in at
+            <strong>{{ required_site.name }}</strong> — checking in at any other site will be rejected.
+          </span>
+        </div>
+      </div>
+    </div>
+    {% elif active_event and not required_site and not current %}
+    <div class="alert alert-info py-2 px-3 mb-3">
+      <i class="bi bi-calendar-event me-1"></i>
+      You are registered for <strong>{{ active_event.title }}</strong> today.
+      Check in normally to record your attendance.
+    </div>
+    {% endif %}
+
+    {% if not site and not active_sites %}
+      <div class="alert alert-warning">No active project site configured. An admin must add a project site first.</div>
+      {% if user.is_portal_admin %}<a class="btn btn-primary" href="{% url 'attendance:site_create' %}"><i class="bi bi-plus-circle me-1"></i>Add Swahilipot Hub</a>{% endif %}
+    {% else %}
+      {% if active_sites|length > 1 and not current %}
+      <!-- Multiple active sites: let the user pick which one to check in to -->
+      <div class="alert alert-info py-2 px-3 mb-3">
+        <i class="bi bi-pin-map me-1"></i>
+        <strong>{{ active_sites|length }} sites active.</strong> Select the site you are checking in at.
+      </div>
+      {% for s in active_sites %}
+      <form method="post" action="{% url 'attendance:check_in' %}" data-gps-form class="mb-2">
+        {% csrf_token %}
+        <input type="hidden" name="latitude">
+        <input type="hidden" name="longitude">
+        <input type="hidden" name="site_id" value="{{ s.pk }}">
+        <button class="btn w-100 text-start
+          {% if required_site and s.pk == required_site.pk %}btn-success{% else %}btn-primary{% endif %}">
+          <i class="bi bi-geo-alt me-2"></i>Check In at <strong>{{ s.name }}</strong>
+          {% if required_site and s.pk == required_site.pk %}
+            <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem">Event venue ✓</span>
+          {% elif required_site %}
+            <span class="badge bg-danger ms-1" style="font-size:.65rem">Wrong site for today's event</span>
+          {% endif %}
+          <small class="d-block mt-1 fw-normal opacity-75">In: {{ s.expected_check_in_time }} · Out: {{ s.expected_check_out_time }}</small>
+        </button>
+      </form>
+      {% endfor %}
+      <p class="text-muted mt-2 small text-center">Your arrival time will be auto-recorded once location is confirmed.</p>
+      {% else %}
+
+      {% if current %}
+      <!-- CHECKED IN — show check-out -->
+      <div class="checkin-status checked-in mb-3">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        <span>Checked in at <strong>{{ current.check_in_time|date:"H:i" }}</strong></span>
+        <span class="badge bg-success ms-2">{{ current.get_arrival_status_display }}</span>
+      </div>
+      <!-- Live geofence status indicator -->
+      <div id="geofenceStatus" class="alert alert-info py-2 px-3 mb-3 d-flex align-items-center gap-2" role="alert">
+        <span class="spinner-grow spinner-grow-sm text-info" id="gfSpinner"></span>
+        <span id="gfText"><strong>Location monitoring active</strong> — waiting for first GPS ping…</span>
+      </div>
+      <form method="post" action="{% url 'attendance:check_out' %}" data-gps-form>
+        {% csrf_token %}
+        <input type="hidden" name="latitude">
+        <input type="hidden" name="longitude">
+        <button class="btn btn-warning btn-lg w-100">
+          <i class="bi bi-box-arrow-right me-2"></i>Check Out
+        </button>
+      </form>
+      <p class="text-muted mt-2 small text-center">Your departure time will be auto-recorded.</p>
+
+      {% elif already_done_today %}
+      <!-- ALREADY COMPLETED TODAY — once-per-day limit reached -->
+      <div class="checkin-status checked-out mb-3">
+        <i class="bi bi-calendar2-check-fill me-2 text-success"></i>
+        <span>Attendance complete for today — <strong>{{ hours_today|floatformat:2 }} hours</strong> recorded.</span>
+      </div>
+      <div class="alert alert-info py-2 px-3">
+        <i class="bi bi-info-circle me-1"></i>
+        You have already checked in and checked out today. Only one attendance session per day is allowed.
+      </div>
+
+      {% else %}
+      <!-- NOT CHECKED IN — show check-in -->
+      {% if hours_today %}
+      <div class="checkin-status checked-out mb-3">
+        <i class="bi bi-clock-history me-2"></i>
+        <span>Today's total: <strong>{{ hours_today|floatformat:2 }} hours</strong></span>
+      </div>
+      {% endif %}
+      <form method="post" action="{% url 'attendance:check_in' %}" data-gps-form>
+        {% csrf_token %}
+        <input type="hidden" name="latitude">
+        <input type="hidden" name="longitude">
+        <button class="btn btn-primary btn-lg w-100">
+          <i class="bi bi-geo-alt me-2"></i>Check In
+        </button>
+      </form>
+      <p class="text-muted mt-2 small text-center">Your arrival time will be auto-recorded.</p>
+      {% endif %}
+
+      {% if site %}
+      <div class="site-schedule mt-3">
+        <div class="schedule-item">
+          <i class="bi bi-sunrise text-success me-1"></i>
+          <span>Expected In: <strong>{{ site.expected_check_in_time }}</strong></span>
+        </div>
+        <div class="schedule-item">
+          <i class="bi bi-sunset text-warning me-1"></i>
+          <span>Expected Out: <strong>{{ site.expected_check_out_time }}</strong></span>
+        </div>
+        <div class="schedule-item">
+          <i class="bi bi-clock text-info me-1"></i>
+          <span>Grace Period: <strong>{{ site.grace_minutes }} min</strong></span>
+        </div>
+      </div>
+      {% endif %}
+
+      {% endif %}{# end: if active_sites|length > 1 ... else #}
+    {% endif %}{# end: if not site and not active_sites ... else #}
+  </div>
+
+  <!-- History Panel -->
+  <div class="panel">
+    <h2><i class="bi bi-clock-history me-2"></i>Recent History</h2>
+    {% for record in records %}
+    <div class="history-row">
+      <div class="history-main">
+        <span class="history-date">{{ record.check_in_time|date:"M d, Y" }}</span>
+        <div class="history-times">
+          <span class="time-chip in"><i class="bi bi-box-arrow-in-right me-1"></i>{{ record.check_in_time|date:"H:i" }}</span>
+          {% if record.check_out_time %}
+          <span class="time-chip out"><i class="bi bi-box-arrow-right me-1"></i>{{ record.check_out_time|date:"H:i" }}</span>
+          {% else %}
+          <span class="time-chip active"><i class="bi bi-circle-fill me-1"></i>Active</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="history-meta">
+        {% if record.total_hours %}
+        <span class="hours-badge">{{ record.total_hours|floatformat:2 }}h</span>
+        {% endif %}
+        <div class="status-badges">
+          {% if record.arrival_status %}
+          <span class="status-chip {{ record.arrival_status }}">{{ record.get_arrival_status_display }}</span>
+          {% endif %}
+          {% if record.departure_status %}
+          <span class="status-chip {{ record.departure_status }}">{{ record.get_departure_status_display }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="empty-state"><i class="bi bi-calendar-x fs-2 text-muted"></i><p class="text-muted mt-2">No attendance records yet.</p></div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if site %}window.portalSite={lat:{{ site.latitude }},lng:{{ site.longitude }},radius:{{ site.radius_meters }}};{% endif %}
+{% if current %}window.portalCheckedIn=true;{% else %}window.portalCheckedIn=false;{% endif %}
+window.geofencePingUrl="{% url 'attendance:geofence_ping' %}";
+window.locationStatusUrl="{% url 'attendance:location_status' %}";
+window.csrfToken="{{ csrf_token }}";
+</script>
+<script src="{% static 'js/notification_sounds.js' %}"></script>
+<script src="{% static 'js/attendance.js' %}"></script>
+{# geofence.js is loaded globally by base.html — do not load it again here #}
+{% endblock %}

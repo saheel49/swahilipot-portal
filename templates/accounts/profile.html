@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-person-circle me-2"></i>My Profile</h1>
+  <a href="{% url 'password_change' %}" class="btn btn-sm btn-outline-warning">
+    <i class="bi bi-key me-1"></i>Change Password
+  </a>
+</div>
+<div class="grid-2">
+  <!-- Left: current photo -->
+  <div class="panel text-center">
+    {% if user.profile_photo %}
+      <img src="{{ user.profile_photo.url }}" alt="Profile photo"
+           class="profile-photo-large mb-3">
+    {% else %}
+      <div class="profile-photo-placeholder mb-3">
+        <i class="bi bi-person-fill"></i>
+      </div>
+    {% endif %}
+    <div class="fw-bold fs-5">{{ user.get_full_name|default:user.username }}</div>
+    <div class="text-muted small">{{ user.get_role_display }}</div>
+    {% if user.department %}<div class="text-muted small">{{ user.department }}</div>{% endif %}
+    <div class="text-muted small mt-1">{{ user.email }}</div>
+  </div>
+
+  <!-- Right: edit form -->
+  <div class="panel">
+    <h2>Edit Profile</h2>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {% for field in form %}
+      <div class="field-group mb-3">
+        <label class="field-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<small class="text-muted">{{ field.help_text }}</small>{% endif %}
+        {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+      </div>
+      {% endfor %}
+      <button class="btn btn-primary w-100">
+        <i class="bi bi-check2 me-1"></i>Save Changes
+      </button>
+    </form>
+  </div>
+</div>
+
+<style>
+.profile-photo-large{width:140px;height:140px;border-radius:50%;object-fit:cover;border:3px solid #e5e7eb;box-shadow:0 4px 16px rgba(0,0,0,.1)}
+.profile-photo-placeholder{width:140px;height:140px;border-radius:50%;background:linear-gradient(135deg,#0F4C81,#1E88E5);display:flex;align-items:center;justify-content:center;margin:0 auto;font-size:3.5rem;color:#fff}
+</style>
+{% endblock %}

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-geo-alt-fill me-2"></i>Location History</h1>
+    <p class="text-muted small mb-0">
+      Record of when
+      <strong>{{ target.get_full_name|default:target.username }}</strong>
+      turned their device location on and off
+    </p>
+  </div>
+  <a href="javascript:history.back()" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Back
+  </a>
+</div>
+
+<!-- User info card -->
+<div class="d-flex align-items-center gap-3 mb-4 p-3"
+     style="background:#eff6ff;border-radius:12px;border:1px solid #bfdbfe">
+  {% if target.profile_photo %}
+  <img src="{{ target.profile_photo.url }}" alt="{{ target }}"
+       style="width:52px;height:52px;border-radius:50%;object-fit:cover">
+  {% else %}
+  <span style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1e40af,#3b82f6);
+               color:#fff;display:flex;align-items:center;justify-content:center;
+               font-size:1.3rem;flex-shrink:0">
+    <i class="bi bi-person-fill"></i>
+  </span>
+  {% endif %}
+  <div>
+    <div class="fw-bold" style="color:#1e40af;font-size:1rem">
+      {{ target.get_full_name|default:target.username }}
+    </div>
+    <div class="text-muted small">{{ target.email }} &middot; {{ target.get_role_display }}</div>
+    {% if target.department %}
+    <div class="text-muted small"><i class="bi bi-building me-1"></i>{{ target.department }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="panel">
+  {% if logs %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" style="font-size:.88rem">
+      <thead style="background:#eff6ff">
+        <tr>
+          <th style="width:36px"></th>
+          <th>Turned Off At</th>
+          <th>Turned On At</th>
+          <th>Duration Off</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td>
+            {% if log.turned_on_at %}
+            <span style="color:#16a34a;font-size:1.1rem"><i class="bi bi-check-circle-fill"></i></span>
+            {% else %}
+            <span style="color:#dc2626;font-size:1.1rem"><i class="bi bi-x-circle-fill"></i></span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="fw-semibold">{{ log.turned_off_at|date:"H:i" }}</div>
+            <div class="text-muted" style="font-size:.75rem">{{ log.turned_off_at|date:"d M Y" }}</div>
+          </td>
+          <td>
+            {% if log.turned_on_at %}
+            <div class="fw-semibold">{{ log.turned_on_at|date:"H:i" }}</div>
+            <div class="text-muted" style="font-size:.75rem">{{ log.turned_on_at|date:"d M Y" }}</div>
+            {% else %}
+            <span class="badge bg-danger">Still Off</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if log.duration_minutes is not None %}
+            <span class="badge" style="background:#fef3c7;color:#92400e;font-size:.8rem">
+              <i class="bi bi-clock me-1"></i>{{ log.duration_display }}
+            </span>
+            {% else %}
+            <span class="text-danger fw-semibold small">Active (location off)</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if log.turned_on_at %}
+            <span class="badge bg-success">Resolved</span>
+            {% else %}
+            <span class="badge bg-danger">Location Off</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="mt-3 text-muted small">
+    <i class="bi bi-info-circle me-1"></i>
+    Showing last {{ logs|length }} location event{{ logs|length|pluralize }}.
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <i class="bi bi-geo-alt fs-2 text-muted"></i>
+    <p class="text-muted mt-2">No location events recorded for this user yet.</p>
+    <p class="text-muted small">Events are recorded when the user turns their browser/device location on or off.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

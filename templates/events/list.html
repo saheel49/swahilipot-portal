@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-calendar-event me-2"></i>Events</h1>
+  {% if user.can_manage_events %}
+  <a class="btn btn-primary" href="{% url 'events:create' %}">
+    <i class="bi bi-plus-lg me-1"></i>Create Event
+  </a>
+  {% endif %}
+</div>
+
+<!-- ── Upcoming Events ──────────────────────────────────────────────── -->
+<h2 class="section-heading mt-2 mb-3">
+  <i class="bi bi-calendar-check me-2 text-primary"></i>Upcoming Events
+</h2>
+{% if upcoming %}
+<div class="grid-2 mb-4">
+  {% for event in upcoming %}
+  <div class="panel event-card upcoming-event">
+    {% if event.banner %}
+    <img src="{{ event.banner.url }}" class="img-fluid rounded mb-3 event-banner" alt="{{ event.title }}">
+    {% endif %}
+
+    <div class="d-flex justify-content-between align-items-start mb-1">
+      <h2 class="event-title mb-0">{{ event.title }}</h2>
+      {% if event.is_full %}
+        <span class="badge text-bg-danger ms-2 flex-shrink-0">Fully Booked</span>
+      {% elif event.pk in reg_event_ids %}
+        <span class="badge text-bg-success ms-2 flex-shrink-0">Registered ✓</span>
+      {% else %}
+        <span class="badge text-bg-primary ms-2 flex-shrink-0">Open</span>
+      {% endif %}
+    </div>
+
+    <p class="text-muted small mb-2">
+      <i class="bi bi-geo-alt me-1"></i>{{ event.location }}
+      <span class="mx-1">·</span>
+      <i class="bi bi-clock me-1"></i>{{ event.start_date|date:"M d, H:i" }}
+    </p>
+
+    <!-- Capacity bar -->
+    <div class="mb-3" style="font-size:.78rem;color:#6b7280">
+      <div style="height:6px;background:#e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:3px">
+        <div style="height:100%;border-radius:10px;
+                    background:{% if event.is_full %}#ef4444{% else %}linear-gradient(90deg,#1e40af,#3b82f6){% endif %};
+                    width:{% widthratio event.form_response_count event.capacity 100 %}%">
+        </div>
+      </div>
+      {% if event.is_full %}
+        <span class="text-danger fw-bold">FULL</span> · {{ event.capacity }} max
+      {% else %}
+        {{ event.form_response_count }}/{{ event.capacity }} registered
+      {% endif %}
+    </div>
+
+    <!-- Action buttons -->
+    <div class="d-flex gap-2 mt-auto flex-wrap">
+      <a class="btn btn-outline-primary btn-sm" href="{% url 'events:detail' event.pk %}">
+        <i class="bi bi-eye me-1"></i>View
+      </a>
+      {% if event.pk not in reg_event_ids and not event.is_full %}
+      <a class="btn btn-primary btn-sm" href="{% url 'events:register' event.pk %}">
+        <i class="bi bi-person-plus me-1"></i>Register
+      </a>
+      {% elif event.pk in reg_event_ids %}
+      <span class="btn btn-success btn-sm disabled">
+        <i class="bi bi-check-circle me-1"></i>Registered
+      </span>
+      {% endif %}
+      {% if user.can_manage_events %}
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'events:edit' event.pk %}">
+        <i class="bi bi-pencil me-1"></i>Edit
+      </a>
+      <a class="btn btn-outline-danger btn-sm" href="{% url 'events:delete' event.pk %}">
+        <i class="bi bi-trash me-1"></i>Delete
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="panel mb-4">
+  <div class="text-center text-muted py-3">
+    <i class="bi bi-calendar-x fs-3 d-block mb-2"></i>
+    No upcoming events scheduled.
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Past Events ──────────────────────────────────────────────────── -->
+<h2 class="section-heading mt-4 mb-3">
+  <i class="bi bi-calendar-minus me-2 text-secondary"></i>Past Events
+</h2>
+{% if past %}
+<div class="grid-2">
+  {% for event in past %}
+  <div class="panel event-card past-event">
+    {% if event.banner %}
+    <img src="{{ event.banner.url }}" class="img-fluid rounded mb-3 event-banner past-banner" alt="{{ event.title }}">
+    {% endif %}
+    <div class="d-flex justify-content-between align-items-start mb-1">
+      <h2 class="event-title text-muted mb-0">{{ event.title }}</h2>
+      <span class="badge text-bg-secondary ms-2 flex-shrink-0">Past</span>
+    </div>
+    <p class="text-muted small mb-2">
+      <i class="bi bi-geo-alt me-1"></i>{{ event.location }}
+      <span class="mx-1">·</span>
+      <i class="bi bi-calendar me-1"></i>{{ event.start_date|date:"M d, Y" }}
+    </p>
+    <div class="d-flex gap-2 mt-auto flex-wrap">
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'events:detail' event.pk %}">
+        <i class="bi bi-eye me-1"></i>View Details
+      </a>
+      {% if user.can_manage_events %}
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'events:edit' event.pk %}">
+        <i class="bi bi-pencil me-1"></i>Edit
+      </a>
+      <a class="btn btn-outline-warning btn-sm" href="{% url 'events:no_shows' event.pk %}">
+        <i class="bi bi-person-x me-1"></i>No-Shows
+      </a>
+      <a class="btn btn-outline-danger btn-sm" href="{% url 'events:delete' event.pk %}">
+        <i class="bi bi-trash me-1"></i>Delete
+      </a>
+      {% endif %}
+      <span class="ms-auto text-muted small align-self-center">
+        {{ event.form_response_count }} registered · {{ event.attendance_count }} attended
+      </span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="panel">
+  <p class="text-muted text-center py-2 mb-0">No past events on record yet.</p>
+</div>
+{% endif %}
+
+<style>
+.section-heading { font-size:1.1rem;font-weight:700;color:#374151;border-bottom:2px solid #e5e7eb;padding-bottom:6px }
+.event-card { display:flex;flex-direction:column }
+.event-title { font-size:1.1rem;font-weight:700 }
+.event-banner { max-height:160px;object-fit:cover;width:100% }
+.past-event { opacity:.82 }
+.past-banner { filter:grayscale(35%) }
+</style>
+{% endblock %}

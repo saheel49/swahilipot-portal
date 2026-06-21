@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:480px;margin:60px auto;text-align:center;padding:20px">
+  <div style="font-size:4rem;margin-bottom:16px">
+    {% if reason == "full" %}🚫{% elif reason == "no_form" %}⚙️{% else %}📅{% endif %}
+  </div>
+  <h1 style="font-size:1.5rem;font-weight:800;margin-bottom:8px">
+    {% if reason == "full" %}Event Fully Booked
+    {% elif reason == "no_form" %}Form Not Configured
+    {% else %}Registration Closed{% endif %}
+  </h1>
+  <p class="text-muted">
+    {% if reason == "full" %}
+      <strong>{{ event.title }}</strong> has reached maximum capacity.
+      Registration is now closed.
+    {% elif reason == "no_form" %}
+      The registration form for <strong>{{ event.title }}</strong> has not been
+      configured yet. Please contact the organiser.
+    {% else %}
+      <strong>{{ event.title }}</strong> has already ended.
+      Thank you for your interest!
+    {% endif %}
+  </p>
+  {% if user.is_authenticated %}
+  <a href="{% url 'events:list' %}" class="btn btn-primary mt-3">View Other Events</a>
+  {% endif %}
+</div>
+{% endblock %}

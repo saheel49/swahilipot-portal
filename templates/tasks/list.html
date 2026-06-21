@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-check2-square me-2"></i>Tasks</h1>
+    <p class="text-muted mb-0 small">
+      {% if user.is_portal_admin %}
+        Viewing all tasks &mdash; <strong>Admin</strong>
+      {% elif user.role == "program_manager" %}
+        Viewing tasks you created or are assigned to &mdash; <strong>Program Manager</strong>
+      {% elif user.role == "department_head" %}
+        Viewing your department's tasks &mdash; <strong>Department Head</strong>
+      {% else %}
+        Viewing tasks assigned to you &mdash; <strong>{{ user.get_role_display }}</strong>
+      {% endif %}
+    </p>
+  </div>
+  {% if user.can_manage_tasks %}
+  <a class="btn btn-primary" href="{% url 'tasks:create' %}">
+    <i class="bi bi-plus-circle me-1"></i>Create Task
+  </a>
+  {% endif %}
+</div>
+
+<div class="panel">
+  {% for task in tasks %}
+  <a class="list-row" href="{% url 'tasks:detail' task.pk %}">
+    <span>
+      <strong>{{ task.title }}</strong>
+      <br>
+      <small class="text-muted">
+        <i class="bi bi-person me-1"></i>{{ task.assigned_to }}
+        {% if task.assigned_by %} &middot; <i class="bi bi-person-check me-1"></i>by {{ task.assigned_by }}{% endif %}
+        &middot; due {{ task.due_date }}
+      </small>
+    </span>
+    <span class="d-flex gap-2 align-items-center">
+      <span class="status-chip {{ task.status }}">{{ task.get_status_display }}</span>
+      <span class="priority-chip {{ task.priority }}">{{ task.get_priority_display }}</span>
+    </span>
+  </a>
+  {% empty %}
+  <div class="empty-state">
+    <i class="bi bi-clipboard-x fs-2 text-muted"></i>
+    <p class="text-muted mt-2">No tasks found for your role.</p>
+  </div>
+  {% endfor %}
+</div>
+
+<style>
+.priority-chip,.status-chip{font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.4px}
+.priority-chip.low{background:#dcfce7;color:#166534}
+.priority-chip.medium{background:#fef9c3;color:#854d0e}
+.priority-chip.high{background:#fee2e2;color:#991b1b}
+.priority-chip.critical{background:#4c0519;color:#fda4af}
+.status-chip.pending{background:#f3f4f6;color:#374151}
+.status-chip.in_progress{background:#dbeafe;color:#1d4ed8}
+.status-chip.under_review{background:#ede9fe;color:#5b21b6}
+.status-chip.completed{background:#dcfce7;color:#166534}
+</style>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:580px;margin:48px auto">
+  <div class="panel">
+    <h2 class="mb-1"><i class="bi bi-gear me-2"></i>Webhook Test — {{ event.title }}</h2>
+    <p class="text-muted small mb-4">
+      Use this to verify the live count pipeline works without needing a real Google Form submission.
+      Clicking the button simulates one form registration.
+    </p>
+
+    <div class="d-flex gap-3 mb-4 flex-wrap">
+      <div class="text-center px-4 py-3 rounded flex-fill" style="background:#eff6ff;border:1px solid #bfdbfe">
+        <div style="font-size:2rem;font-weight:800;color:#1e40af">{{ event.form_response_count }}</div>
+        <div class="small text-muted">Current Count</div>
+      </div>
+      <div class="text-center px-4 py-3 rounded flex-fill" style="background:#f0fdf4;border:1px solid #bbf7d0">
+        <div style="font-size:2rem;font-weight:800;color:#065f46">{{ event.capacity }}</div>
+        <div class="small text-muted">Capacity</div>
+      </div>
+    </div>
+
+    <div class="alert alert-info py-2 px-3 mb-4">
+      <strong>Webhook URL for your Apps Script:</strong><br>
+      <code style="word-break:break-all">{{ request.scheme }}://{{ request.get_host }}/events/{{ event.pk }}/form-response/</code>
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary w-100">
+        <i class="bi bi-plus-circle me-2"></i>Simulate One Registration (add +1 to live count)
+      </button>
+    </form>
+
+    <a href="{% url 'events:detail' event.pk %}" class="btn btn-outline-secondary w-100 mt-2">
+      <i class="bi bi-arrow-left me-1"></i>Back to Event
+    </a>
+  </div>
+</div>
+{% endblock %}

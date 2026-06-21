@@ -1,0 +1,429 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Swahilipot Portal</title>
+  <!-- Apply saved theme immediately to prevent flash of wrong theme -->
+  <script>
+    (function(){
+      var t;
+      try{t=localStorage.getItem("spPortalTheme");}catch(e){}
+      if(!t&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches){t="dark";}
+      if(t){document.documentElement.setAttribute("data-theme",t);}
+    })();
+  </script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
+  <link href="{% static 'css/portal.css' %}" rel="stylesheet">
+  <style>
+    /* ── Swahilipot logo in sidebar ── */
+    .brand{
+      display:flex;align-items:center;gap:10px;
+      padding:18px 16px 14px;
+      border-bottom:1px solid rgba(255,255,255,.1);
+      margin-bottom:10px;
+    }
+    .brand-logo-img{
+      width:72px;height:72px;border-radius:16px;
+      background:rgba(255,255,255,.95);
+      overflow:hidden;flex-shrink:0;
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:0 0 20px rgba(30,64,175,.4), 0 0 0 3px rgba(255,255,255,.2);
+    }
+    .brand-logo-img img{width:100%;height:100%;object-fit:contain;padding:6px}
+    .brand-text{display:flex;flex-direction:column;line-height:1.1}
+    .brand-name-txt{font-size:.95rem;font-weight:800;color:#fff;letter-spacing:.2px}
+    .brand-sub-txt{font-size:.62rem;color:rgba(255,255,255,.55);letter-spacing:.3px}
+
+    /* ── Sidebar scroll fade at bottom (sticky, inside sidebar only) ── */
+    .sidebar::after{
+      content:'';
+      position:sticky;
+      bottom:0;
+      display:block;
+      width:100%;height:48px;
+      margin-top:-48px;
+      background:linear-gradient(to bottom, transparent, rgba(15,76,129,.96));
+      pointer-events:none;
+      flex-shrink:0;
+    }
+
+    /* ── Mobile hamburger button ── */
+    .sidebar-toggle{
+      display:none;
+      background:none;border:1.5px solid var(--topbar-border);
+      border-radius:8px;padding:6px 10px;cursor:pointer;
+      color:var(--ink);font-size:1.2rem;line-height:1;
+      align-items:center;justify-content:center;
+      transition:background .15s;
+      touch-action:manipulation;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .sidebar-toggle:hover{background:var(--surface2)}
+
+    /* ── Mobile overlay backdrop ── */
+    .sidebar-overlay{
+      display:none;
+      position:fixed;inset:0;
+      background:rgba(0,0,0,.55);
+      z-index:299;
+      -webkit-tap-highlight-color:transparent;
+    }
+  </style>
+</head>
+<body>
+{% if user.is_authenticated %}
+<!-- Mobile sidebar overlay -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-logo-img">
+        <img src="https://swahilipothub.co.ke/wp-content/uploads/2021/06/Swahilipot-logo-Trans.png"
+     onerror="this.src='{% static 'images/swahilipot-logo.jfif' %}';this.onerror=null;"
+     alt="Swahilipot">
+      </div>
+      <div class="brand-text">
+        <span class="brand-name-txt">Swahilipot</span>
+        <span class="brand-sub-txt">Hub Portal</span>
+      </div>
+    </div>
+
+    <!-- Role badge in sidebar -->
+    <div class="sidebar-role-badge">
+      {% if user.is_portal_admin %}
+        <span class="srb srb-admin"><i class="bi bi-shield-fill me-1"></i>Admin</span>
+      {% elif user.role == "program_manager" %}
+        <span class="srb srb-pm"><i class="bi bi-star-fill me-1"></i>Program Manager</span>
+      {% elif user.role == "department_head" %}
+        <span class="srb srb-dh"><i class="bi bi-diagram-3-fill me-1"></i>Dept Head</span>
+      {% elif user.role == "intern" %}
+        <span class="srb srb-intern"><i class="bi bi-mortarboard-fill me-1"></i>Intern</span>
+      {% else %}
+        <span class="srb srb-staff"><i class="bi bi-person-fill me-1"></i>Staff</span>
+      {% endif %}
+    </div>
+
+    <a href="{% url 'dashboard:home' %}"><i class="bi bi-speedometer2"></i> Dashboard</a>
+    <a href="{% url 'attendance:home' %}"><i class="bi bi-geo-alt"></i> Attendance</a>
+    <a href="{% url 'attendance:my_location_timeout' %}"><i class="bi bi-clock-history"></i> Location Timeout</a>
+    {% if user.can_monitor_attendance %}
+    <a href="{% url 'attendance:missed_checkout' %}"><i class="bi bi-door-open"></i> Missed Checkout</a>
+    <a href="{% url 'attendance:location_activity' %}"
+       style="padding-left:2.2rem;font-size:.85rem;opacity:.9"
+       id="sidebar-loc-activity">
+      <i class="bi bi-broadcast text-warning"></i> Location Activity
+      <span id="sidebar-loc-off-count"
+            class="badge bg-danger ms-1"
+            style="display:none;font-size:.6rem"></span>
+    </a>
+    {% endif %}
+
+    {% if user.is_portal_admin %}
+    <a href="{% url 'attendance:sites' %}"><i class="bi bi-pin-map"></i> Project Sites</a>
+    {% if user.is_manager %}
+    <a href="{% url 'attendance:geofence_violations' %}"><i class="bi bi-exclamation-triangle"></i> Violations</a>
+    {% endif %}
+    <a href="{% url 'accounts:user_directory' %}"><i class="bi bi-people"></i> User Directory</a>
+    <a href="{% url 'accounts:departments' %}"><i class="bi bi-building"></i> Departments</a>
+    {% endif %}
+
+    <a href="{% url 'tasks:list' %}"><i class="bi bi-check2-square"></i> Tasks</a>
+    <a href="{% url 'dashboard:reminders' %}"><i class="bi bi-calendar-check"></i> Reminders</a>
+    <a href="{% url 'events:list' %}"><i class="bi bi-calendar-event"></i> Events</a>
+    {% if user.can_manage_events %}
+    <a href="{% url 'events:all_no_shows' %}" style="padding-left:2.2rem;font-size:.85rem;opacity:.9">
+      <i class="bi bi-person-x"></i> No-Shows
+    </a>
+    <a href="{% url 'events:all_no_shows' %}" style="padding-left:2.2rem;font-size:.85rem;opacity:.9">
+      <i class="bi bi-person-slash"></i> Not Registered
+    </a>
+    {% endif %}
+    <a href="{% url 'communication:home' %}"><i class="bi bi-chat-dots"></i> Communication</a>
+    <a href="{% url 'suggestions:list' %}"><i class="bi bi-lightbulb"></i> Suggestions</a>
+
+    {% if user.can_view_reports %}
+    <div style="border-top:1px solid rgba(255,255,255,.12);margin:10px 0 8px"></div>
+    <a href="{% url 'dashboard:reports' %}"><i class="bi bi-file-earmark-bar-graph"></i> Reports</a>
+    {% endif %}
+
+    <!-- Bottom padding so last link clears the scrollbar thumb -->
+    <div style="height:24px"></div>
+
+    <!-- Sidebar scroll — native styled scrollbar; drag the bar on the right edge -->
+  </aside>
+
+  <main class="main">
+    <nav class="topbar">
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Open navigation menu" aria-expanded="false">
+        <i class="bi bi-list"></i>
+      </button>
+      <span class="fw-semibold" style="margin-left:8px">{{ user.get_full_name|default:user.username }}</span>
+      <div class="ms-auto d-flex gap-3 align-items-center">
+        <!-- Dark/Light mode toggle -->
+        <button id="themeToggleBtn"
+                class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                title="Toggle light / dark mode"
+                aria-label="Toggle colour theme"
+                style="font-size:.75rem;padding:4px 10px;border-radius:8px">
+          <i class="bi bi-moon-fill" id="themeIcon"></i>
+          <span id="themeLabel" class="d-none d-sm-inline">Dark</span>
+        </button>
+        <a class="position-relative" href="{% url 'communication:notifications' %}">
+          <i class="bi bi-bell fs-5"></i>
+          {% if unread_notifications_count %}
+          <span class="badge rounded-pill text-bg-warning">{{ unread_notifications_count }}</span>
+          {% endif %}
+        </a>
+        <a href="{% url 'accounts:profile' %}" class="topbar-avatar">
+          {% if user.profile_photo %}
+            <img src="{{ user.profile_photo.url }}" alt="avatar">
+          {% else %}
+            <i class="bi bi-person-circle"></i>
+          {% endif %}
+        </a>
+        <form method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button class="btn btn-sm btn-outline-primary">Logout</button>
+        </form>
+      </div>
+    </nav>
+    <section class="content">
+      {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+      {% endfor %}
+      {% block content %}{% endblock %}
+    </section>
+  </main>
+</div>
+{% else %}
+{% block public_content %}{% endblock %}
+{% endif %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{% static 'js/notification_sounds.js' %}"></script>
+
+<!-- ── Theme toggle (light / dark) ─────────────────────────────────── -->
+<script>
+(function () {
+  "use strict";
+
+  var STORAGE_KEY = "spPortalTheme";
+  var html        = document.documentElement;
+  var btn         = document.getElementById("themeToggleBtn");
+  var icon        = document.getElementById("themeIcon");
+  var label       = document.getElementById("themeLabel");
+
+  // Resolve: saved pref → OS preference → default light
+  function getSavedTheme() {
+    try { return localStorage.getItem(STORAGE_KEY); } catch (e) { return null; }
+  }
+  function getOSTheme() {
+    return (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)
+      ? "dark" : "light";
+  }
+
+  var current = getSavedTheme() || getOSTheme();
+  applyTheme(current);
+
+  function applyTheme(theme) {
+    current = theme;
+    html.setAttribute("data-theme", theme);
+    if (btn) {
+      if (theme === "dark") {
+        icon.className  = "bi bi-sun-fill";
+        if (label) label.textContent = "Light";
+        btn.title = "Switch to light mode";
+      } else {
+        icon.className  = "bi bi-moon-fill";
+        if (label) label.textContent = "Dark";
+        btn.title = "Switch to dark mode";
+      }
+    }
+    try { localStorage.setItem(STORAGE_KEY, theme); } catch (e) {}
+  }
+
+  if (btn) {
+    btn.addEventListener("click", function () {
+      applyTheme(current === "dark" ? "light" : "dark");
+    });
+  }
+
+  // Respond to OS preference changes if user has no saved pref
+  if (window.matchMedia) {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function (e) {
+      if (!getSavedTheme()) applyTheme(e.matches ? "dark" : "light");
+    });
+  }
+})();
+</script>
+<script>
+// ── Live notification badge + sound — polls every 30 s ───────────────────
+(function() {
+  var bellLink = document.querySelector('a[href*="notifications"]');
+  if (!bellLink) return;
+
+  // Track previous unread count to detect new arrivals
+  // Seed from the server-rendered badge so we don't false-alarm on first load
+  var existingBadge = bellLink.querySelector('.badge');
+  var lastUnread = existingBadge ? parseInt(existingBadge.textContent, 10) || 0 : 0;
+  var firstPoll  = true;   // skip sound on the very first fetch (page load)
+
+  function refreshBadge() {
+    fetch('{% url "communication:notifications" %}', {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data) return;
+
+      // ── Update badge ──────────────────────────────────────────────────
+      var badge = bellLink.querySelector('.badge');
+      if (data.unread > 0) {
+        if (badge) {
+          badge.textContent = data.unread;
+        } else {
+          badge = document.createElement('span');
+          badge.className = 'badge rounded-pill text-bg-warning';
+          badge.textContent = data.unread;
+          bellLink.appendChild(badge);
+        }
+      } else {
+        if (badge) badge.remove();
+      }
+
+      // ── Play sound only when NEW unread notifications arrive ──────────
+      if (!firstPoll && data.unread > lastUnread && window.portalSound) {
+        window.portalSound.play(data.highest_priority || 'medium');
+      }
+      firstPoll  = false;
+      lastUnread = data.unread;
+    })
+    .catch(function() {});
+  }
+
+  // First poll after 3 s (page settle), then every 30 s
+  setTimeout(function poll() { refreshBadge(); setTimeout(poll, 30000); }, 3000);
+})();
+</script>
+
+{% if user.can_monitor_attendance %}
+<script>
+// ── Location Activity sidebar badge — shows who has location off ──────────
+(function () {
+  var badge   = document.getElementById('sidebar-loc-off-count');
+  var link    = document.getElementById('sidebar-loc-activity');
+  if (!badge || !link) return;
+
+  function refreshLocBadge() {
+    fetch('{% url "attendance:location_off_status" %}', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (data) {
+      if (!data) return;
+      if (data.count > 0) {
+        badge.textContent = data.count;
+        badge.style.display = 'inline-block';
+        // Build tooltip: list each name and time off
+        var tip = data.users.map(function (u) {
+          return u.name + ' (off since ' + u.off_since + ')';
+        }).join('\n');
+        link.title = '⚠ Location off:\n' + tip;
+      } else {
+        badge.style.display = 'none';
+        link.title = '';
+      }
+    })
+    .catch(function () {});
+  }
+
+  refreshLocBadge();
+  setInterval(refreshLocBadge, 30000);
+})();
+</script>
+{% endif %}
+{% block scripts %}{% endblock %}
+
+<!-- ── Sidebar mobile toggle ────────────────────────────────────────── -->
+<script>
+(function () {
+  "use strict";
+  var sidebar  = document.getElementById("sidebar");
+  var overlay  = document.getElementById("sidebarOverlay");
+  var toggle   = document.getElementById("sidebarToggle");
+
+  if (!sidebar || !toggle) return;  // not authenticated / desktop only
+
+  function openSidebar() {
+    sidebar.classList.add("sidebar-open");
+    if (overlay) {
+      overlay.style.display = "block";
+    }
+    toggle.setAttribute("aria-expanded", "true");
+    document.documentElement.style.overflow = "hidden";  // prevent background scroll
+  }
+
+  function closeSidebar() {
+    sidebar.classList.remove("sidebar-open");
+    if (overlay) {
+      overlay.style.display = "none";
+    }
+    toggle.setAttribute("aria-expanded", "false");
+    document.documentElement.style.overflow = "";
+  }
+
+  toggle.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (sidebar.classList.contains("sidebar-open")) {
+      closeSidebar();
+    } else {
+      openSidebar();
+    }
+  });
+
+  // Close when overlay is tapped
+  if (overlay) {
+    overlay.addEventListener("click", closeSidebar);
+    overlay.addEventListener("touchend", function(e){ e.preventDefault(); closeSidebar(); });
+  }
+
+  // Close when a nav link inside sidebar is tapped (navigate away)
+  sidebar.querySelectorAll("a").forEach(function (link) {
+    link.addEventListener("click", function () {
+      closeSidebar();
+    });
+  });
+
+  // Reset on page show (back/forward cache)
+  window.addEventListener("pageshow", function () {
+    closeSidebar();
+  });
+})();
+</script>
+{% if user.is_authenticated %}
+<script>
+// ── Sitewide location monitoring (geofence.js) ────────────────────────────
+// Runs on EVERY authenticated page so location on/off is detected immediately,
+// regardless of which page the user is on.
+// portalCheckedIn=false means no geofence ping loop; only location alive-check.
+if (typeof window.portalCheckedIn === 'undefined') {
+  window.portalCheckedIn  = false;
+}
+if (typeof window.geofencePingUrl === 'undefined') {
+  window.geofencePingUrl  = "{% url 'attendance:geofence_ping' %}";
+}
+if (typeof window.locationStatusUrl === 'undefined') {
+  window.locationStatusUrl = "{% url 'attendance:location_status' %}";
+}
+if (typeof window.csrfToken === 'undefined') {
+  window.csrfToken = "{{ csrf_token }}";
+}
+</script>
+<script src="{% static 'js/geofence.js' %}"></script>
+{% endif %}
+</body>
+</html>

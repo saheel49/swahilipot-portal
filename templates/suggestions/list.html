@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-lightbulb-fill me-2"></i>Suggestions</h1>
+  <a class="btn btn-primary" href="{% url 'suggestions:create' %}">
+    <i class="bi bi-plus-circle me-1"></i>Submit Suggestion
+  </a>
+</div>
+<div class="panel">
+  {% for s in suggestions %}
+  <div class="sug-card">
+    <div class="sug-top">
+      <div class="sug-title-wrap">
+        <span class="sug-cat-pill sug-cat-{{ s.category }}">{{ s.get_category_display }}</span>
+        <strong class="sug-title">{{ s.title }}</strong>
+      </div>
+      <div class="sug-meta-right">
+        <span class="sug-status sug-{{ s.status }}">{{ s.get_status_display }}</span>
+        {% if user.can_review_suggestions %}
+        <a href="{% url 'suggestions:review' s.pk %}" class="btn btn-xs btn-outline-primary ms-1">
+          <i class="bi bi-pencil me-1"></i>Review
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    <p class="sug-message">{{ s.message }}</p>
+    {% if s.response %}
+    <div class="sug-response">
+      <i class="bi bi-chat-left-quote me-1 text-primary"></i>
+      <strong class="text-primary small">Admin Response:</strong>
+      <span class="small">{{ s.response }}</span>
+    </div>
+    {% endif %}
+    <div class="sug-footer">
+      <span><i class="bi bi-person me-1"></i>{{ s.display_user }}</span>
+      <span><i class="bi bi-clock me-1"></i>{{ s.submitted_at|date:"M d, Y · H:i" }}</span>
+    </div>
+  </div>
+  {% empty %}
+  <div class="empty-state">
+    <i class="bi bi-lightbulb fs-2 text-muted"></i>
+    <p class="text-muted mt-2">No suggestions found.</p>
+  </div>
+  {% endfor %}
+</div>
+<style>
+.sug-card{border:1.5px solid #e5e7eb;border-radius:12px;padding:16px 18px;margin-bottom:14px;background:#fff;transition:box-shadow .2s}
+.sug-card:hover{box-shadow:0 4px 16px rgba(15,76,129,.08)}
+.sug-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px}
+.sug-title-wrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sug-title{font-size:.95rem;color:#111827}
+.sug-message{font-size:.88rem;color:#374151;margin:0 0 10px;line-height:1.6}
+.sug-response{background:#eff6ff;border-left:3px solid #3b82f6;border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:10px;font-size:.85rem;display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap}
+.sug-footer{display:flex;gap:16px;font-size:.75rem;color:#9ca3af}
+.sug-meta-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.sug-cat-pill{font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.4px}
+.sug-cat-improvement{background:#dbeafe;color:#1d4ed8}
+.sug-cat-complaint{background:#fee2e2;color:#991b1b}
+.sug-cat-idea{background:#ede9fe;color:#5b21b6}
+.sug-cat-feedback{background:#dcfce7;color:#166534}
+.sug-status{font-size:.7rem;font-weight:700;padding:2px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.4px}
+.sug-pending{background:#fef3c7;color:#92400e}
+.sug-reviewed{background:#dbeafe;color:#1d4ed8}
+.sug-resolved{background:#dcfce7;color:#166534}
+.btn-xs{font-size:.72rem;padding:3px 8px;border-radius:6px;line-height:1}
+</style>
+{% endblock %}

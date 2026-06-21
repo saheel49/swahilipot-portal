@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h1>Project Sites</h1>
+  <a class="btn btn-primary" href="{% url 'attendance:site_create' %}">Add Project Site</a>
+</div>
+<div class="panel">
+  {% for site in sites %}
+    <div class="list-row">
+      <span>
+        <strong>{{ site.name }}</strong><br>
+        <small>{{ site.latitude }}, {{ site.longitude }} - {{ site.radius_meters }}m radius</small>
+      </span>
+      <span>
+        {% if site.active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-secondary">Inactive</span>{% endif %}
+        <a class="btn btn-sm btn-outline-primary ms-2" href="{% url 'attendance:site_edit' site.pk %}">Edit</a>
+      </span>
+    </div>
+  {% empty %}
+    <p>No project sites configured.</p>
+    <a class="btn btn-primary" href="{% url 'attendance:site_create' %}">Add Swahilipot Hub</a>
+  {% endfor %}
+</div>
+{% endblock %}

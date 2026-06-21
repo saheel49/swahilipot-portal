@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-chat-dots-fill me-2"></i>Communication</h1>
+  {% if user.can_manage_communication %}
+  <a class="btn btn-primary" href="{% url 'communication:announcement_create' %}">
+    <i class="bi bi-megaphone me-1"></i>New Announcement
+  </a>
+  {% endif %}
+</div>
+
+<div class="grid-2">
+  <!-- Announcements -->
+  <div class="panel">
+    <h2><i class="bi bi-megaphone me-2"></i>Announcements</h2>
+    {% for a in announcements %}
+    <div class="list-row flex-column align-items-start gap-1">
+      <div class="d-flex justify-content-between w-100">
+        <strong>{{ a.title }}</strong>
+        <small class="text-muted">{{ a.created_at|date:"M d" }}</small>
+      </div>
+      <p class="mb-0 text-muted small">{{ a.content|truncatewords:20 }}</p>
+      {% if a.attachment %}
+      <a href="{{ a.attachment.url }}" target="_blank" class="attach-link">
+        <i class="bi bi-paperclip me-1"></i>{{ a.attachment.name|cut:"announcements/" }}
+      </a>
+      {% endif %}
+    </div>
+    {% empty %}<p class="text-muted">No announcements.</p>{% endfor %}
+  </div>
+
+  <!-- Department Channels -->
+  <div class="panel">
+    <h2><i class="bi bi-hash me-2"></i>Department Channels</h2>
+    {% for c in channels %}
+    <a class="list-row" href="{% url 'communication:channel' c.pk %}">
+      <span><i class="bi bi-chat-square-text me-2 text-primary"></i>{{ c.name }}</span>
+      <span class="text-muted small">{{ c.department }}</span>
+    </a>
+    {% empty %}<p class="text-muted">No channels in your department.</p>{% endfor %}
+  </div>
+</div>
+
+<!-- Direct Messages -->
+<div class="panel">
+  <h2><i class="bi bi-envelope me-2"></i>Direct Messages</h2>
+  <form method="post" enctype="multipart/form-data" action="{% url 'communication:send_direct' %}" class="dm-compose mb-4">
+    {% csrf_token %}
+    {% for field in dm_form %}
+    <div class="mb-2">
+      <label class="field-label">{{ field.label }}</label>
+      {{ field }}
+    </div>
+    {% endfor %}
+    <button class="btn btn-primary"><i class="bi bi-send me-1"></i>Send Message</button>
+  </form>
+
+  <div class="dm-list">
+    {% for dm in direct_messages %}
+    <div class="dm-row {% if dm.sender == user %}dm-sent{% else %}dm-received{% endif %}">
+      <div class="dm-meta">
+        <span class="dm-who">
+          {% if dm.sender == user %}You → {{ dm.receiver }}{% else %}{{ dm.sender }} → You{% endif %}
+        </span>
+        <span class="dm-time">{{ dm.timestamp|date:"M d, H:i" }}</span>
+      </div>
+      <div class="dm-bubble">
+        {{ dm.message }}
+        {% if dm.attachment %}
+        <div class="dm-attachment">
+          <a href="{{ dm.attachment.url }}" target="_blank" class="attach-link">
+            <i class="bi bi-paperclip me-1"></i>{{ dm.attachment.name|cut:"direct_messages/" }}
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <p class="text-muted">No messages yet.</p>
+    {% endfor %}
+  </div>
+</div>
+
+<style>
+.dm-list{display:flex;flex-direction:column;gap:12px}
+.dm-row{max-width:75%}
+.dm-sent{align-self:flex-end}
+.dm-received{align-self:flex-start}
+.dm-meta{display:flex;justify-content:space-between;gap:12px;font-size:.72rem;color:#9ca3af;margin-bottom:3px}
+.dm-bubble{background:#f3f4f6;border-radius:12px;padding:10px 14px;font-size:.9rem;line-height:1.5}
+.dm-sent .dm-bubble{background:#dbeafe;color:#1e3a5f}
+.dm-attachment{margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,.08)}
+.attach-link{font-size:.8rem;color:#1d4ed8;text-decoration:none;display:inline-flex;align-items:center}
+.attach-link:hover{text-decoration:underline}
+.dm-list{display:flex;flex-direction:column}
+</style>
+{% endblock %}

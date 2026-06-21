@@ -1,0 +1,385 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+
+<div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-3">
+  <div>
+    <h1 class="page-header mb-1" style="font-size:1.65rem;margin:0 0 6px">
+      <i class="bi bi-file-earmark-bar-graph me-2 text-primary"></i>Reports Centre
+    </h1>
+    <p class="text-muted small mb-0">
+      Download PDF and Excel reports for every section of the portal.
+      Use the date filter to narrow results by date range.
+    </p>
+  </div>
+
+  <!-- Branding block -->
+  <div class="swp-report-brand">
+    <img
+      src="https://swahilipothub.co.ke/wp-content/uploads/2021/06/Swahilipot-logo-Trans.png"
+      alt="Swahilipot Logo"
+      class="swp-brand-logo"
+      id="swpLogo"
+      onerror="this.src='{% static 'images/swahilipot-logo.jfif' %}';this.onerror=null"
+    >
+    <div class="swp-brand-info">
+      <div class="swp-brand-name">Swahilipot Hub Foundation</div>
+      <div class="swp-brand-tagline">Empowering Youth Through Technology &amp; Arts</div>
+      <div class="swp-brand-contact">
+        <i class="bi bi-geo-alt-fill me-1"></i>Mombasa County Governor's Office
+        &nbsp;·&nbsp;
+        <a href="https://www.swahilipothub.co.ke" target="_blank" class="swp-brand-link">swahilipothub.co.ke</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Date filter -->
+<form class="panel mb-4" method="get">
+  <div class="d-flex align-items-center gap-2 mb-2">
+    <i class="bi bi-calendar-range text-primary"></i>
+    <span class="fw-semibold" style="font-size:.88rem">Date Range Filter</span>
+    <span class="text-muted small">(applies to all date-based reports)</span>
+  </div>
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label small fw-semibold">Start Date</label>
+      <input class="form-control" type="date" name="start" value="{{ request.GET.start }}">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small fw-semibold">End Date</label>
+      <input class="form-control" type="date" name="end" value="{{ request.GET.end }}">
+    </div>
+    <div class="col-md-4 d-flex align-items-end gap-2">
+      <button class="btn btn-primary flex-fill">
+        <i class="bi bi-funnel me-1"></i>Apply Filter
+      </button>
+      <a href="{% url 'dashboard:reports' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-x-lg"></i>
+      </a>
+    </div>
+  </div>
+</form>
+
+<!-- ── Report sections ─────────────────────────────────────────────────── -->
+
+<!-- Attendance -->
+<div class="report-section mb-3">
+  <div class="report-section-header">
+    <i class="bi bi-geo-alt-fill"></i>
+    <div>
+      <div class="report-section-title">Attendance</div>
+      <div class="report-section-desc">All staff check-in / check-out records with hours and arrival/departure status.</div>
+    </div>
+  </div>
+  <div class="report-btns">
+    <a class="btn btn-outline-danger"
+       href="{% url 'dashboard:report_download' 'attendance' 'pdf' %}?{{ request.GET.urlencode }}">
+      <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+    </a>
+    <a class="btn btn-outline-success"
+       href="{% url 'dashboard:report_download' 'attendance' 'xlsx' %}?{{ request.GET.urlencode }}">
+      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+    </a>
+  </div>
+</div>
+
+<!-- Geofence Violations -->
+<div class="report-section mb-3">
+  <div class="report-section-header">
+    <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+    <div>
+      <div class="report-section-title">Geofence Violations</div>
+      <div class="report-section-desc">All instances where staff left the approved site perimeter while checked in, with distances and resolution status.</div>
+    </div>
+  </div>
+  <div class="report-btns">
+    <a class="btn btn-outline-danger"
+       href="{% url 'attendance:geofence_violations_report' 'pdf' %}">
+      <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+    </a>
+    <a class="btn btn-outline-success"
+       href="{% url 'attendance:geofence_violations_report' 'xlsx' %}">
+      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+    </a>
+  </div>
+</div>
+
+<!-- Missed Checkout -->
+<div class="report-section mb-3">
+  <div class="report-section-header">
+    <i class="bi bi-door-open text-warning"></i>
+    <div>
+      <div class="report-section-title">Missed Checkout</div>
+      <div class="report-section-desc">Staff sessions that were automatically closed because they forgot to check out before the deadline.</div>
+    </div>
+  </div>
+  <div class="report-btns">
+    <a class="btn btn-outline-danger"
+       href="{% url 'attendance:missed_checkout_report' 'pdf' %}">
+      <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+    </a>
+    <a class="btn btn-outline-success"
+       href="{% url 'attendance:missed_checkout_report' 'xlsx' %}">
+      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+    </a>
+  </div>
+</div>
+
+<!-- Location Timeout -->
+<div class="report-section mb-3">
+  <div class="report-section-header">
+    <i class="bi bi-clock-history text-warning"></i>
+    <div>
+      <div class="report-section-title">Location Timeout (All Users)</div>
+      <div class="report-section-desc">All staff location on/off events, durations, and whether they were resolved. Useful for monitoring GPS availability.</div>
+    </div>
+  </div>
+  <div class="report-btns">
+    <a class="btn btn-outline-danger"
+       href="{% url 'dashboard:report_download' 'location_timeout' 'pdf' %}?{{ request.GET.urlencode }}">
+      <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+    </a>
+    <a class="btn btn-outline-success"
+       href="{% url 'dashboard:report_download' 'location_timeout' 'xlsx' %}?{{ request.GET.urlencode }}">
+      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+    </a>
+  </div>
+</div>
+
+<!-- Tasks -->
+<div class="report-section mb-3">
+  <div class="report-section-header">
+    <i class="bi bi-check2-square text-primary"></i>
+    <div>
+      <div class="report-section-title">Tasks</div>
+      <div class="report-section-desc">Task assignments, priorities, statuses, and due dates — scoped to your role's visibility.</div>
+    </div>
+  </div>
+  <div class="report-btns">
+    <a class="btn btn-outline-danger"
+       href="{% url 'dashboard:report_download' 'tasks' 'pdf' %}?{{ request.GET.urlencode }}">
+      <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+    </a>
+    <a class="btn btn-outline-success"
+       href="{% url 'dashboard:report_download' 'tasks' 'xlsx' %}?{{ request.GET.urlencode }}">
+      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+    </a>
+  </div>
+</div>
+
+<!-- Events — per-event report downloads -->
+<div class="report-section mb-3" style="flex-direction:column;align-items:stretch">
+  <div class="report-section-header mb-3">
+    <i class="bi bi-calendar-event-fill text-info"></i>
+    <div>
+      <div class="report-section-title">Events — Per-Event Reports</div>
+      <div class="report-section-desc">
+        Download Registrations, No-Shows, and Not-Registered reports individually for each event.
+      </div>
+    </div>
+  </div>
+
+  {% if events_data %}
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead style="background:#1e40af;color:#fff">
+        <tr>
+          <th style="color:#fff">Event</th>
+          <th style="color:#fff" class="text-center">Date</th>
+          <th style="color:#fff" class="text-center">Registered</th>
+          <th style="color:#fff" class="text-center">Attended</th>
+          <th style="color:#fff" class="text-center">No-Shows</th>
+          <th style="color:#fff" class="text-center">Not Reg.</th>
+          <th style="color:#fff" class="text-center">Registrations</th>
+          <th style="color:#fff" class="text-center">No-Shows</th>
+          <th style="color:#fff" class="text-center">Not Registered</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in events_data %}
+        <tr>
+          <td>
+            <a href="{% url 'events:detail' row.event.pk %}" class="fw-semibold text-decoration-none" style="color:#1e40af">
+              {{ row.event.title }}
+            </a>
+            {% if row.event.is_past %}
+              <span class="badge text-bg-secondary ms-1" style="font-size:.6rem">Past</span>
+            {% else %}
+              <span class="badge text-bg-success ms-1" style="font-size:.6rem">Active</span>
+            {% endif %}
+          </td>
+          <td class="text-center text-muted small">{{ row.event.start_date|date:"M d, Y" }}</td>
+          <td class="text-center"><span class="badge bg-primary">{{ row.registered }}</span></td>
+          <td class="text-center"><span class="badge bg-success">{{ row.attended }}</span></td>
+          <td class="text-center">
+            {% if row.no_show > 0 %}<span class="badge bg-danger">{{ row.no_show }}</span>
+            {% else %}<span class="badge bg-light text-muted border">0</span>{% endif %}
+          </td>
+          <td class="text-center">
+            {% if row.not_reg > 0 %}<span class="badge bg-secondary">{{ row.not_reg }}</span>
+            {% else %}<span class="badge bg-light text-muted border">0</span>{% endif %}
+          </td>
+          <!-- Registrations downloads -->
+          <td class="text-center">
+            <div class="d-flex gap-1 justify-content-center">
+              <a href="{% url 'events:report' row.event.pk 'pdf' %}" class="btn btn-outline-danger btn-sm py-0 px-2" title="Registrations PDF">
+                <i class="bi bi-file-earmark-pdf"></i>
+              </a>
+              <a href="{% url 'events:report' row.event.pk 'xlsx' %}" class="btn btn-outline-success btn-sm py-0 px-2" title="Registrations Excel">
+                <i class="bi bi-file-earmark-spreadsheet"></i>
+              </a>
+            </div>
+          </td>
+          <!-- No-Shows downloads -->
+          <td class="text-center">
+            <div class="d-flex gap-1 justify-content-center">
+              <a href="{% url 'events:no_shows_report' row.event.pk 'pdf' %}" class="btn btn-outline-danger btn-sm py-0 px-2" title="No-Shows PDF">
+                <i class="bi bi-file-earmark-pdf"></i>
+              </a>
+              <a href="{% url 'events:no_shows_report' row.event.pk 'xlsx' %}" class="btn btn-outline-success btn-sm py-0 px-2" title="No-Shows Excel">
+                <i class="bi bi-file-earmark-spreadsheet"></i>
+              </a>
+            </div>
+          </td>
+          <!-- Not Registered downloads -->
+          <td class="text-center">
+            <div class="d-flex gap-1 justify-content-center">
+              <a href="{% url 'events:not_registered_report' row.event.pk 'pdf' %}" class="btn btn-outline-danger btn-sm py-0 px-2" title="Not Registered PDF">
+                <i class="bi bi-file-earmark-pdf"></i>
+              </a>
+              <a href="{% url 'events:not_registered_report' row.event.pk 'xlsx' %}" class="btn btn-outline-success btn-sm py-0 px-2" title="Not Registered Excel">
+                <i class="bi bi-file-earmark-spreadsheet"></i>
+              </a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <!-- Column legend -->
+  <div class="mt-2 d-flex flex-wrap gap-3" style="font-size:.72rem;color:#6b7280">
+    <span><i class="bi bi-file-earmark-pdf text-danger me-1"></i>PDF download</span>
+    <span><i class="bi bi-file-earmark-spreadsheet text-success me-1"></i>Excel download</span>
+    <span><span class="badge bg-primary" style="font-size:.6rem">n</span> = registered portal users</span>
+    <span><span class="badge bg-success" style="font-size:.6rem">n</span> = geofence check-ins</span>
+    <span><span class="badge bg-danger" style="font-size:.6rem">n</span> = registered but didn't attend</span>
+    <span><span class="badge bg-secondary" style="font-size:.6rem">n</span> = portal users who never registered</span>
+  </div>
+  {% else %}
+  <div class="text-muted small py-3 text-center">
+    <i class="bi bi-calendar-x me-1"></i>No events found — create an event first.
+  </div>
+  {% endif %}
+</div>
+
+<!-- Suggestions -->
+<div class="report-section mb-3">
+  <div class="report-section-header">
+    <i class="bi bi-lightbulb-fill text-warning"></i>
+    <div>
+      <div class="report-section-title">Suggestions</div>
+      <div class="report-section-desc">Staff-submitted suggestions with categories, statuses, and submission dates.</div>
+    </div>
+  </div>
+  <div class="report-btns">
+    <a class="btn btn-outline-danger"
+       href="{% url 'dashboard:report_download' 'suggestions' 'pdf' %}?{{ request.GET.urlencode }}">
+      <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+    </a>
+    <a class="btn btn-outline-success"
+       href="{% url 'dashboard:report_download' 'suggestions' 'xlsx' %}?{{ request.GET.urlencode }}">
+      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+    </a>
+  </div>
+</div>
+
+<style>
+/* ── Report page layout ──────────────────────────────────────────────── */
+.report-section {
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  transition: box-shadow .2s, border-color .2s;
+}
+.report-section:hover {
+  border-color: #bfdbfe;
+  box-shadow: 0 2px 12px rgba(30,64,175,.08);
+}
+.report-section-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+}
+.report-section-header > i {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  color: #1e40af;
+}
+.report-section-title {
+  font-size: .95rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 2px;
+}
+.report-section-desc {
+  font-size: .78rem;
+  color: #6b7280;
+  line-height: 1.4;
+}
+.report-btns {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.report-btns .btn {
+  font-size: .82rem;
+  padding: 6px 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Branding block ──────────────────────────────────────────────────── */
+.swp-report-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fff;
+  border: 1.5px solid #dbeafe;
+  border-radius: 12px;
+  padding: 14px 18px;
+  box-shadow: 0 1px 6px rgba(30,64,175,.07);
+  flex-shrink: 0;
+}
+.swp-brand-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  object-fit: contain;
+  border: 1.5px solid #e0e7ff;
+  background: #f0f4ff;
+  padding: 6px;
+  flex-shrink: 0;
+}
+.swp-brand-name { font-size: .92rem; font-weight: 800; color: #1e40af; margin-bottom: 2px; }
+.swp-brand-tagline { font-size: .7rem; color: #374151; margin-bottom: 3px; }
+.swp-brand-contact { font-size: .67rem; color: #6b7280; }
+.swp-brand-link { color: #1e40af; text-decoration: none; font-weight: 600; }
+.swp-brand-link:hover { text-decoration: underline; }
+
+@media(max-width:640px) {
+  .report-section { flex-direction: column; align-items: flex-start; }
+  .swp-report-brand { width: 100%; flex-direction: column; align-items: flex-start; }
+}
+</style>
+
+{% endblock %}

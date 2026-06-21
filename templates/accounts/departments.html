@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-building me-2"></i>Departments</h1>
+    <p class="text-muted mb-0 small">Manage departments, assign users, and assign tasks</p>
+  </div>
+  <a href="{% url 'accounts:department_create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-circle me-1"></i>New Department
+  </a>
+</div>
+
+{% if not departments %}
+<div class="panel text-center py-5">
+  <i class="bi bi-building fs-1 text-muted"></i>
+  <p class="text-muted mt-3">No departments yet. Create your first department above.</p>
+</div>
+{% endif %}
+
+{% for dept in departments %}
+<div class="dept-card">
+  <!-- Department header -->
+  <div class="dept-hdr">
+    <div class="dept-icon"><i class="bi bi-building-fill"></i></div>
+    <div class="dept-info">
+      <div class="dept-name">{{ dept.name }}</div>
+      {% if dept.description %}<div class="dept-desc text-muted small">{{ dept.description }}</div>{% endif %}
+    </div>
+    <div class="dept-actions">
+      <span class="dept-count-badge">{{ dept.users.count }} member{{ dept.users.count|pluralize }}</span>
+      <a href="{% url 'accounts:department_edit' dept.pk %}" class="btn btn-xs btn-outline-secondary">
+        <i class="bi bi-pencil me-1"></i>Edit
+      </a>
+    </div>
+  </div>
+
+  <!-- Current members -->
+  {% if dept.users.all %}
+  <div class="dept-members">
+    <div class="dept-section-label">Current Members</div>
+    <div class="dept-member-grid">
+      {% for u in dept.users.all %}
+      <div class="dept-member-chip {% if not u.is_active %}chip-inactive{% endif %}">
+        <div class="chip-avatar">
+          {% if u.profile_photo %}
+            <img src="{{ u.profile_photo.url }}" alt="{{ u }}">
+          {% else %}
+            {{ u.first_name|first|upper|default:u.username|first|upper }}
+          {% endif %}
+        </div>
+        <div class="chip-info">
+          <span class="chip-name">{{ u.get_full_name|default:u.username }}</span>
+          <span class="chip-role chip-role-{% if u.role == 'admin' %}danger{% elif u.role == 'program_manager' %}primary{% elif u.role == 'department_head' %}purple{% elif u.role == 'intern' %}warning{% else %}success{% endif %}">
+            {{ u.get_role_display }}
+          </span>
+        </div>
+        <a href="{% url 'attendance:location_log' u.pk %}"
+           class="chip-loc-btn" title="Location history for {{ u.get_full_name|default:u.username }}">
+          <i class="bi bi-geo-alt-fill"></i>
+        </a>
+        <form method="post" action="{% url 'accounts:department_remove_user' dept.pk u.pk %}" style="display:inline">
+          {% csrf_token %}
+          <button type="submit" class="chip-remove" title="Remove from department"
+                  onclick="return confirm('Remove {{ u }} from {{ dept.name }}?')">
+            <i class="bi bi-x"></i>
+          </button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Assign users form -->
+  <div class="dept-assign-section">
+    <div class="dept-section-label">Assign Users</div>
+    <form method="post" action="{% url 'accounts:department_assign' dept.pk %}" class="dept-assign-form">
+      {% csrf_token %}
+      <div class="assign-scroll">
+        {% for u in all_unassigned %}
+        <label class="assign-option">
+          <input type="checkbox" name="user_pks" value="{{ u.pk }}">
+          <div class="assign-avatar">
+            {% if u.profile_photo %}<img src="{{ u.profile_photo.url }}" alt="">
+            {% else %}{{ u.first_name|first|upper|default:u.username|first|upper }}{% endif %}
+          </div>
+          <div class="assign-info">
+            <span class="assign-name">{{ u.get_full_name|default:u.username }}</span>
+            <span class="assign-role text-muted">{{ u.get_role_display }}</span>
+          </div>
+        </label>
+        {% empty %}
+        <p class="text-muted small ps-2">All active users are already assigned to a department.</p>
+        {% endfor %}
+      </div>
+      {% if all_unassigned %}
+      <button class="btn btn-sm btn-primary mt-3">
+        <i class="bi bi-person-plus me-1"></i>Assign Selected
+      </button>
+      {% endif %}
+    </form>
+  </div>
+
+  <!-- ── TASK ASSIGNMENT SECTION ────────────────────────────────── -->
+  {% if request.user.can_manage_tasks %}
+  <div class="dept-task-section">
+    <div class="dept-section-label">
+      <i class="bi bi-check2-square me-1" style="color:#0F4C81"></i>
+      Assign Tasks
+    </div>
+
+    <!-- Tab switcher -->
+    <div class="task-tab-row" id="task-tabs-{{ dept.pk }}">
+      <button type="button" class="task-tab active" onclick="switchTab('{{ dept.pk }}','whole')">
+        <i class="bi bi-building me-1"></i>Whole Department
+      </button>
+      <button type="button" class="task-tab" onclick="switchTab('{{ dept.pk }}','specific')">
+        <i class="bi bi-person-lines-fill me-1"></i>Specific Member(s)
+      </button>
+    </div>
+
+    <!-- Whole-department task form -->
+    <div class="task-panel" id="tp-whole-{{ dept.pk }}">
+      <p class="text-muted small mb-2">
+        Creates individual tasks for <strong>every member</strong> of {{ dept.name }}.
+      </p>
+      <form method="post" action="{% url 'accounts:department_assign_task' dept.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="assign_mode" value="whole">
+        <div class="row g-2 mb-2">
+          <div class="col-12">
+            <input type="text" name="title" class="form-control form-control-sm" placeholder="Task title *" required>
+          </div>
+          <div class="col-12">
+            <textarea name="description" class="form-control form-control-sm" rows="2" placeholder="Description *" required></textarea>
+          </div>
+          <div class="col-sm-6">
+            <select name="priority" class="form-select form-select-sm">
+              <option value="low">Low Priority</option>
+              <option value="medium" selected>Medium Priority</option>
+              <option value="high">High Priority</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+          <div class="col-sm-6">
+            <input type="date" name="due_date" class="form-control form-control-sm" required>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-sm btn-success">
+          <i class="bi bi-send me-1"></i>Assign to All {{ dept.users.count }} Member{{ dept.users.count|pluralize }}
+        </button>
+      </form>
+    </div>
+
+    <!-- Specific members task form -->
+    <div class="task-panel d-none" id="tp-specific-{{ dept.pk }}">
+      <p class="text-muted small mb-2">Select members and assign a task to each of them.</p>
+      {% if dept.users.all %}
+      <form method="post" action="{% url 'accounts:department_assign_task' dept.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="assign_mode" value="specific">
+        <div class="mb-2">
+          <div class="dept-section-label" style="margin-top:0">Select Members</div>
+          <div class="assign-scroll">
+            {% for u in dept.users.all %}
+            {% if u.is_active %}
+            <label class="assign-option">
+              <input type="checkbox" name="member_pks" value="{{ u.pk }}">
+              <div class="assign-avatar">
+                {% if u.profile_photo %}<img src="{{ u.profile_photo.url }}" alt="">
+                {% else %}{{ u.first_name|first|upper|default:u.username|first|upper }}{% endif %}
+              </div>
+              <div class="assign-info">
+                <span class="assign-name">{{ u.get_full_name|default:u.username }}</span>
+                <span class="assign-role text-muted">{{ u.get_role_display }}</span>
+              </div>
+            </label>
+            {% endif %}
+            {% empty %}
+            <p class="text-muted small ps-2">No active members in this department.</p>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-12">
+            <input type="text" name="title" class="form-control form-control-sm" placeholder="Task title *" required>
+          </div>
+          <div class="col-12">
+            <textarea name="description" class="form-control form-control-sm" rows="2" placeholder="Description *" required></textarea>
+          </div>
+          <div class="col-sm-6">
+            <select name="priority" class="form-select form-select-sm">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+          <div class="col-sm-6">
+            <input type="date" name="due_date" class="form-control form-control-sm" required>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">
+          <i class="bi bi-send me-1"></i>Assign to Selected Members
+        </button>
+      </form>
+      {% else %}
+      <p class="text-muted small">No members in this department yet.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+  <!-- ── END TASK ASSIGNMENT SECTION ───────────────────────────── -->
+
+</div>
+{% endfor %}
+
+<style>
+.dept-card{background:#fff;border:1.5px solid #e5e7eb;border-radius:14px;margin-bottom:20px;overflow:hidden}
+.dept-hdr{display:flex;align-items:center;gap:14px;padding:18px 20px;border-bottom:1px solid #f3f4f6;background:#f8faff}
+.dept-icon{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#0F4C81,#1E88E5);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
+.dept-info{flex:1}
+.dept-name{font-weight:800;font-size:1rem;color:#111827}
+.dept-desc{font-size:.8rem}
+.dept-actions{display:flex;align-items:center;gap:8px}
+.dept-count-badge{font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:20px;background:#dbeafe;color:#1d4ed8}
+.btn-xs{font-size:.72rem;padding:4px 10px;border-radius:6px;line-height:1}
+
+.dept-members,.dept-assign-section{padding:14px 20px}
+.dept-assign-section{border-top:1px solid #f3f4f6}
+.dept-task-section{padding:14px 20px;border-top:1px solid #f3f4f6;background:#fafbff}
+.dept-section-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:10px}
+
+/* Member chips */
+.dept-member-grid{display:flex;flex-wrap:wrap;gap:8px}
+.dept-member-chip{display:flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;border-radius:30px;border:1.5px solid #e5e7eb;background:#fff}
+.chip-inactive{opacity:.55;background:#f9fafb}
+.chip-avatar{width:28px;height:28px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0F4C81,#1E88E5);color:#fff;font-size:.75rem;font-weight:700;flex-shrink:0}
+.chip-avatar img{width:100%;height:100%;object-fit:cover}
+.chip-info{display:flex;align-items:center;gap:6px}
+.chip-name{font-size:.8rem;font-weight:600;color:#111827}
+.chip-role{font-size:.65rem;font-weight:700;padding:1px 7px;border-radius:20px;text-transform:uppercase}
+.chip-role-danger{background:#fee2e2;color:#991b1b}
+.chip-role-primary{background:#dbeafe;color:#1d4ed8}
+.chip-role-purple{background:#ede9fe;color:#5b21b6}
+.chip-role-success{background:#dcfce7;color:#166534}
+.chip-role-warning{background:#fef3c7;color:#92400e}
+.chip-remove{width:20px;height:20px;border-radius:50%;border:none;background:transparent;color:#9ca3af;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem;padding:0;transition:all .2s}
+.chip-remove:hover{background:#fee2e2;color:#dc2626}
+.chip-loc-btn{
+  width:24px;height:24px;border-radius:50%;border:none;background:transparent;
+  color:#1d4ed8;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:.85rem;padding:0;text-decoration:none;transition:all .2s;margin-left:2px;
+}
+.chip-loc-btn:hover{background:#dbeafe;color:#1e40af}
+
+/* Assign form */
+.assign-scroll{max-height:180px;overflow-y:auto;border:1.5px solid #e5e7eb;border-radius:10px;padding:4px}
+.assign-option{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;cursor:pointer;transition:background .15s}
+.assign-option:hover{background:#f0f7ff}
+.assign-option input[type=checkbox]{accent-color:#0F4C81;width:15px;height:15px;flex-shrink:0}
+.assign-avatar{width:30px;height:30px;border-radius:50%;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0F4C81,#1E88E5);color:#fff;font-size:.75rem;font-weight:700}
+.assign-avatar img{width:100%;height:100%;object-fit:cover}
+.assign-info{display:flex;flex-direction:column;gap:1px}
+.assign-name{font-size:.83rem;font-weight:600;color:#111827}
+.assign-role{font-size:.72rem}
+
+/* Task tabs */
+.task-tab-row{display:flex;gap:4px;margin-bottom:12px}
+.task-tab{
+  padding:6px 14px;border-radius:8px;font-size:.78rem;font-weight:700;
+  border:1.5px solid #e5e7eb;background:#fff;color:#6b7280;cursor:pointer;
+  transition:all .2s;display:flex;align-items:center;
+}
+.task-tab.active{background:#0F4C81;color:#fff;border-color:#0F4C81}
+.task-tab:hover:not(.active){background:#f0f7ff;border-color:#93c5fd;color:#1d4ed8}
+.task-panel{background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:14px}
+</style>
+
+<script>
+function switchTab(deptPk, mode) {
+  const whole    = document.getElementById('tp-whole-'    + deptPk);
+  const specific = document.getElementById('tp-specific-' + deptPk);
+  const tabs     = document.querySelectorAll('#task-tabs-' + deptPk + ' .task-tab');
+
+  if (mode === 'whole') {
+    whole.classList.remove('d-none');
+    specific.classList.add('d-none');
+    tabs[0].classList.add('active');
+    tabs[1].classList.remove('active');
+  } else {
+    specific.classList.remove('d-none');
+    whole.classList.add('d-none');
+    tabs[1].classList.add('active');
+    tabs[0].classList.remove('active');
+  }
+}
+</script>
+{% endblock %}

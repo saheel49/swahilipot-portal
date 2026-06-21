@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:560px;margin:48px auto">
+
+  <!-- Success card -->
+  <div class="panel text-center mb-4" style="border:2px solid #bbf7d0">
+    <div style="font-size:3rem;margin-bottom:12px">✅</div>
+    <h2 class="mb-1" style="color:#065f46">
+      {% if via_qr %}Attendance Recorded!{% else %}Registration Confirmed!{% endif %}
+    </h2>
+    <p class="text-muted mb-1">
+      You are registered for <strong>{{ event.title }}</strong>.
+    </p>
+    <p class="text-muted small mb-3">
+      <i class="bi bi-geo-alt me-1"></i>{{ event.location }}
+      &nbsp;&middot;&nbsp;
+      <i class="bi bi-calendar me-1"></i>{{ event.start_date|date:"M d, Y H:i" }}
+    </p>
+
+    <!-- Event ID badge — matches the ID pre-filled in the Google Form -->
+    <div class="d-inline-flex align-items-center gap-2 px-3 py-2 mb-4"
+         style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
+      <i class="bi bi-hash text-primary"></i>
+      <span class="text-muted small">Event ID:</span>
+      <strong class="text-primary" style="letter-spacing:.5px">{{ event.pk }}</strong>
+    </div>
+
+    <!-- Step 2 — complete the Google Form -->
+    <div class="alert alert-info py-3 px-4 mb-4" style="text-align:left">
+      <strong><i class="bi bi-pencil-square me-2"></i>One more step</strong><br>
+      <span class="small">
+        Please complete the Google Form below to finalise your registration.
+        The form already has your <strong>Event ID ({{ event.pk }})</strong> filled in
+        so your response will be automatically linked to this event in our records.
+      </span>
+    </div>
+
+    <!-- Primary CTA -->
+    <a href="{{ form_url }}" target="_blank"
+       class="btn btn-primary btn-lg w-100 mb-3"
+       id="open-form-btn">
+      <i class="bi bi-box-arrow-up-right me-2"></i>Open Registration Form
+    </a>
+
+    <a href="{% url 'events:detail' event.pk %}" class="btn btn-outline-secondary btn-sm w-100">
+      <i class="bi bi-arrow-left me-1"></i>Back to Event
+    </a>
+  </div>
+
+  <!-- Instruction box for admins about setting up the form field -->
+  {% if user.can_manage_events %}
+  <div class="panel" style="border:1px solid #fde68a;background:#fefce8">
+    <h3 class="mb-2" style="font-size:.95rem;color:#92400e">
+      <i class="bi bi-info-circle me-1"></i>Admin: Set up Event ID tracking in Google Forms
+    </h3>
+    <ol class="mb-0 small text-muted ps-3" style="line-height:1.9">
+      <li>Open your Google Form → add a <strong>Short answer</strong> question titled <em>"Event ID"</em> and mark it <strong>Required</strong>.</li>
+      <li>Click ⋮ → <strong>Get pre-filled link</strong> → type any value in the Event ID field → <strong>Get link</strong>.</li>
+      <li>In the generated URL find the part that looks like <code>?entry.XXXXXXXXX=</code> — copy the <code>entry.XXXXXXXXX</code> key.</li>
+      <li>Open <code>events/models.py</code> and set:<br>
+        <code>GOOGLE_FORM_EVENT_ID_FIELD = "entry.XXXXXXXXX"</code></li>
+      <li>Optionally add a second <em>"Event Name"</em> field and set <code>GOOGLE_FORM_EVENT_NAME_FIELD</code> the same way.</li>
+      <li>From now on every form opened from this portal will auto-fill the Event ID — both from QR scans and direct registrations.</li>
+    </ol>
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+// Auto-open the form after 1.5 s so the user sees the confirmation first
+setTimeout(function() {
+  window.open('{{ form_url|escapejs }}', '_blank');
+}, 1500);
+</script>
+{% endblock %}

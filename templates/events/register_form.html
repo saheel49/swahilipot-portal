@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:540px;margin:40px auto">
+
+  <!-- Event summary card -->
+  <div class="panel mb-4" style="border-left:4px solid #1e40af">
+    <div class="d-flex align-items-center gap-3 mb-1">
+      <div style="width:44px;height:44px;border-radius:10px;
+                  background:linear-gradient(135deg,#1e40af,#3b82f6);
+                  color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i class="bi bi-calendar-event fs-5"></i>
+      </div>
+      <div>
+        <div class="fw-bold" style="font-size:1.05rem">{{ event.title }}</div>
+        <div class="text-muted small">
+          <i class="bi bi-geo-alt me-1"></i>{{ event.location }}
+          &nbsp;·&nbsp;
+          <i class="bi bi-clock me-1"></i>{{ event.start_date|date:"M d, Y H:i" }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Spots remaining -->
+    <div class="mt-2 d-flex align-items-center gap-2">
+      <div class="capacity-bar-track flex-grow-1" style="height:8px;background:#e5e7eb;border-radius:10px;overflow:hidden">
+        <div style="height:100%;background:linear-gradient(90deg,#1e40af,#3b82f6);border-radius:10px;
+                    width:{% widthratio event.form_response_count event.capacity 100 %}%">
+        </div>
+      </div>
+      <span class="text-muted small fw-semibold" style="white-space:nowrap">
+        {{ event.form_response_count }}/{{ event.capacity }} spots
+      </span>
+    </div>
+  </div>
+
+  <!-- Registration form -->
+  <div class="panel">
+    <h2 class="mb-1" style="font-size:1.15rem;font-weight:700">
+      <i class="bi bi-person-plus me-2 text-primary"></i>Register for This Event
+    </h2>
+    <p class="text-muted small mb-4">
+      Your registration is permanent and cannot be removed once submitted.
+      Fill in your details below — Event ID and Title are pre-filled automatically.
+    </p>
+
+    <form method="post">
+      {% csrf_token %}
+
+      <!-- Pre-filled read-only fields -->
+      <div class="row g-3 mb-3">
+        <div class="col-6">
+          <label class="form-label fw-semibold small text-muted">
+            <i class="bi bi-lock-fill me-1" style="font-size:.7rem"></i>Event ID
+          </label>
+          <input type="text"
+                 class="form-control form-control-sm"
+                 style="background:#f3f4f6;color:#374151;border-color:#d1d5db;cursor:not-allowed;font-weight:700;letter-spacing:.5px"
+                 value="{{ event.pk }}"
+                 readonly
+                 tabindex="-1"
+                 aria-label="Event ID (read-only)">
+        </div>
+        <div class="col-6">
+          <label class="form-label fw-semibold small text-muted">
+            <i class="bi bi-lock-fill me-1" style="font-size:.7rem"></i>Event Title
+          </label>
+          <input type="text"
+                 class="form-control form-control-sm"
+                 style="background:#f3f4f6;color:#374151;border-color:#d1d5db;cursor:not-allowed;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                 value="{{ event.title }}"
+                 readonly
+                 tabindex="-1"
+                 aria-label="Event Title (read-only)"
+                 title="{{ event.title }}">
+        </div>
+      </div>
+      <!-- Visual hint -->
+      <p class="text-muted small mb-3" style="font-size:.75rem">
+        <i class="bi bi-info-circle me-1"></i>
+        Event ID and Title are set automatically and cannot be changed.
+      </p>
+
+      <!-- User-filled fields -->
+      <div class="mb-3">
+        <label for="id_name" class="form-label fw-semibold small">
+          Full Name <span class="text-danger">*</span>
+        </label>
+        <input type="text" id="id_name" name="name"
+               class="form-control {% if error and not name %}is-invalid{% endif %}"
+               value="{{ name }}" placeholder="Your full name" required autocomplete="name">
+      </div>
+
+      <div class="mb-3">
+        <label for="id_email" class="form-label fw-semibold small">
+          Email Address <span class="text-danger">*</span>
+        </label>
+        <input type="email" id="id_email" name="email"
+               class="form-control {% if error and not email %}is-invalid{% endif %}"
+               value="{{ email }}" placeholder="you@example.com" required autocomplete="email">
+      </div>
+
+      <div class="mb-4">
+        <label for="id_phone" class="form-label fw-semibold small">Phone Number</label>
+        <input type="tel" id="id_phone" name="phone"
+               class="form-control"
+               value="{{ phone }}" placeholder="+254 7XX XXX XXX" autocomplete="tel">
+      </div>
+
+      <!-- Note about permanence -->
+      <div class="alert alert-warning py-2 px-3 mb-4 small">
+        <i class="bi bi-lock-fill me-1"></i>
+        Registrations are <strong>permanent</strong> — you will not be able to cancel once submitted.
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary flex-grow-1">
+          <i class="bi bi-check-circle me-2"></i>Confirm Registration
+        </button>
+        <a href="{% url 'events:detail' event.pk %}" class="btn btn-outline-secondary">
+          Cancel
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-bell-fill me-2"></i>My Notifications</h1>
+    <p class="text-muted mb-0 small">Only your personal notifications — updates, tasks, attendance, events, messages</p>
+  </div>
+  <div class="d-flex gap-2 align-items-center">
+    {% if notifications %}
+    <span class="notif-summary-badge">
+      {{ unread_count }} unread
+    </span>
+    {% endif %}
+    <form method="post" style="margin:0">{% csrf_token %}
+      <button class="btn btn-outline-primary btn-sm"><i class="bi bi-check2-all me-1"></i>Mark All Read</button>
+    </form>
+  </div>
+</div>
+
+<!-- Live-update bar: auto-checks for new notifications every 30s -->
+<div id="notif-live-bar" class="notif-live-bar d-none">
+  <i class="bi bi-arrow-clockwise me-1"></i>
+  <span id="notif-live-msg">New notifications available</span>
+  <button class="notif-live-reload" onclick="window.location.reload()">Refresh</button>
+</div>
+
+<div class="panel" id="notif-list">
+  {% for item in notifications %}
+  <a href="{% url 'communication:notification_redirect' item.pk %}"
+     class="notif-row {% if not item.read %}notif-unread{% endif %} notif-clickable"
+     data-id="{{ item.pk }}" data-priority="{{ item.priority }}">
+    <div class="notif-icon-wrap">
+      {% if "task" in item.title|lower %}
+        <div class="notif-icon notif-icon-task"><i class="bi bi-check2-square"></i></div>
+      {% elif "check-in" in item.title|lower or "check in" in item.title|lower %}
+        <div class="notif-icon notif-icon-in"><i class="bi bi-box-arrow-in-right"></i></div>
+      {% elif "check-out" in item.title|lower or "check out" in item.title|lower %}
+        <div class="notif-icon notif-icon-out"><i class="bi bi-box-arrow-right"></i></div>
+      {% elif "forgot" in item.title|lower or "auto" in item.title|lower %}
+        <div class="notif-icon notif-icon-warn"><i class="bi bi-exclamation-triangle-fill"></i></div>
+      {% elif "event" in item.title|lower %}
+        <div class="notif-icon notif-icon-event"><i class="bi bi-calendar-event-fill"></i></div>
+      {% elif "message" in item.title|lower or "channel" in item.title|lower %}
+        <div class="notif-icon notif-icon-msg"><i class="bi bi-chat-dots-fill"></i></div>
+      {% elif "announcement" in item.title|lower %}
+        <div class="notif-icon notif-icon-announce"><i class="bi bi-megaphone-fill"></i></div>
+      {% elif "welcome" in item.title|lower %}
+        <div class="notif-icon notif-icon-welcome"><i class="bi bi-stars"></i></div>
+      {% else %}
+        <div class="notif-icon notif-icon-default"><i class="bi bi-bell"></i></div>
+      {% endif %}
+    </div>
+    <div class="notif-body">
+      <div class="notif-title">
+        {% if not item.read %}<span class="notif-dot"></span>{% endif %}
+        {{ item.title }}
+      </div>
+      <div class="notif-msg">{{ item.message }}</div>
+      <div class="notif-badges mt-1">
+        {% if "Early" in item.message and "check" in item.title|lower %}
+          <span class="notif-badge notif-badge-early"><i class="bi bi-check-circle me-1"></i>Early</span>
+        {% elif "On Time" in item.message %}
+          <span class="notif-badge notif-badge-ontime"><i class="bi bi-clock me-1"></i>On Time</span>
+        {% elif "Late" in item.message and "left" not in item.message|lower %}
+          <span class="notif-badge notif-badge-late"><i class="bi bi-exclamation-circle me-1"></i>Late</span>
+        {% elif "Left Early" in item.message %}
+          <span class="notif-badge notif-badge-leftearly"><i class="bi bi-arrow-left-circle me-1"></i>Left Early</span>
+        {% elif "Left Late" in item.message %}
+          <span class="notif-badge notif-badge-leftlate"><i class="bi bi-arrow-right-circle me-1"></i>Left Late</span>
+        {% endif %}
+        {% if "Forgot" in item.title or "auto" in item.title|lower %}
+          <span class="notif-badge notif-badge-warn"><i class="bi bi-exclamation-triangle me-1"></i>Missed Check-out</span>
+        {% endif %}
+        {% if "critical" in item.message|lower %}
+          <span class="notif-badge notif-badge-critical"><i class="bi bi-fire me-1"></i>Critical</span>
+        {% elif "high" in item.message|lower and "task" in item.title|lower %}
+          <span class="notif-badge notif-badge-high"><i class="bi bi-arrow-up-circle me-1"></i>High Priority</span>
+        {% endif %}
+        {% if item.link %}
+          <span class="notif-badge notif-badge-link"><i class="bi bi-arrow-right-circle me-1"></i>View Details</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="notif-time">
+      {{ item.timestamp|date:"M d" }}<br>
+      <span>{{ item.timestamp|date:"H:i" }}</span>
+      {% if not item.read %}<br><span class="notif-unread-label">Unread</span>{% endif %}
+    </div>
+  </a>
+  {% empty %}
+  <div class="empty-state">
+    <i class="bi bi-bell-slash fs-2 text-muted"></i>
+    <p class="text-muted mt-2">No notifications yet. You'll be notified here about tasks, attendance, events, and messages.</p>
+  </div>
+  {% endfor %}
+</div>
+
+<style>
+.notif-summary-badge{
+  font-size:.72rem;font-weight:700;padding:4px 12px;border-radius:20px;
+  background:#fef3c7;color:#92400e;border:1px solid #fde68a;
+}
+.notif-live-bar{
+  display:flex;align-items:center;gap:8px;
+  background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;
+  padding:8px 14px;font-size:.82rem;color:#1d4ed8;margin-bottom:12px;
+}
+.notif-live-reload{
+  margin-left:auto;font-size:.75rem;font-weight:700;
+  background:#1d4ed8;color:#fff;border:none;border-radius:6px;
+  padding:3px 10px;cursor:pointer;
+}
+.notif-row{display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-bottom:1px solid #eef2f7}
+.notif-row:last-child{border-bottom:none}
+.notif-row.notif-clickable{text-decoration:none;color:inherit;cursor:pointer;border-radius:8px;transition:background .15s}
+.notif-row.notif-clickable:hover{background:#f0f7ff;margin:0 -20px;padding-left:20px;padding-right:20px}
+.notif-unread{background:#f0f7ff;margin:0 -20px;padding:14px 20px;border-radius:8px}
+.notif-icon-wrap{flex-shrink:0}
+.notif-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem}
+.notif-icon-in{background:#dbeafe;color:#1d4ed8}
+.notif-icon-out{background:#fef3c7;color:#92400e}
+.notif-icon-task{background:#dcfce7;color:#166534}
+.notif-icon-warn{background:#fee2e2;color:#991b1b}
+.notif-icon-event{background:#ede9fe;color:#5b21b6}
+.notif-icon-msg{background:#d1fae5;color:#065f46}
+.notif-icon-announce{background:#ffedd5;color:#c2410c}
+.notif-icon-welcome{background:#fef9c3;color:#713f12}
+.notif-icon-default{background:#f3f4f6;color:#6b7280}
+.notif-body{flex:1}
+.notif-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;margin-right:5px;vertical-align:middle}
+.notif-title{font-weight:700;font-size:.9rem;color:#111827;margin-bottom:3px}
+.notif-msg{font-size:.84rem;color:#374151;margin-bottom:4px;line-height:1.5}
+.notif-badges{display:flex;flex-wrap:wrap;gap:4px}
+.notif-badge{font-size:.72rem;font-weight:700;padding:2px 10px;border-radius:20px;display:inline-flex;align-items:center}
+.notif-badge-early{background:#dcfce7;color:#166534}
+.notif-badge-ontime{background:#dbeafe;color:#1d4ed8}
+.notif-badge-late{background:#fee2e2;color:#991b1b}
+.notif-badge-leftearly{background:#fef3c7;color:#92400e}
+.notif-badge-leftlate{background:#ede9fe;color:#5b21b6}
+.notif-badge-warn{background:#fee2e2;color:#991b1b}
+.notif-badge-critical{background:#fee2e2;color:#991b1b}
+.notif-badge-high{background:#ffedd5;color:#c2410c}
+.notif-badge-link{background:#eff6ff;color:#1d4ed8}
+.notif-time{flex-shrink:0;text-align:right;font-size:.78rem;color:#9ca3af;line-height:1.6}
+.notif-time span{font-size:.85rem;color:#6b7280}
+.notif-unread-label{font-size:.65rem;color:#3b82f6;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+</style>
+
+<script>
+// ── Live notification polling ──────────────────────────────────────────
+// Check for new notifications every 30 seconds; if there are more than
+// the count rendered in this page, show the "refresh" bar.
+(function() {
+  const renderedCount = {{ notifications|length }};
+  const liveBar = document.getElementById('notif-live-bar');
+
+  function checkNew() {
+    fetch(window.location.pathname + '?count_only=1', {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.total > renderedCount) {
+        const diff = data.total - renderedCount;
+        document.getElementById('notif-live-msg').textContent =
+          diff + ' new notification' + (diff > 1 ? 's' : '') + ' since you opened this page';
+        liveBar.classList.remove('d-none');
+        // Play sound for new notifications
+        if (window.portalSound) window.portalSound.play(data.highest_priority || 'medium');
+      }
+    })
+    .catch(() => {});
+  }
+
+  // Start polling after 30 s, then every 30 s
+  setTimeout(function poll() {
+    checkNew();
+    setTimeout(poll, 30000);
+  }, 30000);
+
+  // ── Play sound on page load if there are unread notifications ──────────
+  // Only on initial page load, play a low ping for any unread notifications
+  {% if unread_count > 0 %}
+  document.addEventListener('DOMContentLoaded', function() {
+    // Small delay to let the user settle before making a sound
+    setTimeout(function() {
+      if (window.portalSound) {
+        // Determine highest priority from current unread notifications
+        const criticalEl = document.querySelector('.notif-badge-critical');
+        const highEl     = document.querySelector('.task-badge.high');
+        if (criticalEl) {
+          window.portalSound.play('critical');
+        } else if (highEl) {
+          window.portalSound.play('high');
+        } else {
+          window.portalSound.play('low');
+        }
+      }
+    }, 800);
+  });
+  {% endif %}
+})();
+</script>
+{% endblock %}

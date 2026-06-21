@@ -1,0 +1,508 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- Greeting bar -->
+<div class="dash-greeting">
+  <div>
+    <div class="greeting-text">
+      <span id="greetWord">Good morning</span>,
+      <strong>{{ user.get_full_name|default:user.username }}</strong> 👋
+    </div>
+    <div class="greeting-sub">
+      <span id="dashDate"></span> &middot;
+      {% if user.is_portal_admin %}
+        <span class="role-pill admin">Admin</span>
+      {% elif user.role == "program_manager" %}
+        <span class="role-pill pm">Program Manager</span>
+      {% elif user.role == "department_head" %}
+        <span class="role-pill dh">Department Head</span>
+      {% elif user.role == "intern" %}
+        <span class="role-pill intern">Intern</span>
+      {% else %}
+        <span class="role-pill staff">Staff</span>
+      {% endif %}
+      {% if user.department %}&middot; {{ user.department }}{% endif %}
+    </div>
+  </div>
+  <div class="dash-clock" id="dashClock">--:--:--</div>
+</div>
+
+<!-- ── ADMIN / MANAGER METRICS ─────────────────────────────────────────── -->
+{% if user.can_monitor_attendance %}
+<div class="metric-grid">
+  <a href="{% url 'accounts:user_directory' %}" class="metric-card metric-blue" style="text-decoration:none">
+    <div class="metric-icon"><i class="bi bi-people-fill"></i></div>
+    <div class="metric-body">
+      <div class="metric-value">{{ total_staff }}</div>
+      <div class="metric-label">Total Staff</div>
+    </div>
+  </a>
+  <a href="{% url 'attendance:today' %}" class="metric-card metric-green" style="text-decoration:none">
+    <div class="metric-icon"><i class="bi bi-geo-alt-fill"></i></div>
+    <div class="metric-body">
+      <div class="metric-value" id="stat-attendance-today">{{ attendance_today }}</div>
+      <div class="metric-label">Attendance Today</div>
+    </div>
+  </a>
+  <a href="{% url 'attendance:currently_in' %}" class="metric-card metric-teal" style="text-decoration:none">
+    <div class="metric-icon"><i class="bi bi-circle-fill pulse-dot"></i></div>
+    <div class="metric-body">
+      <div class="metric-value" id="stat-checked-in-now">{{ checked_in_now }}</div>
+      <div class="metric-label">Currently In</div>
+    </div>
+  </a>
+  <a href="{% url 'attendance:currently_out' %}" class="metric-card metric-rose" style="text-decoration:none">
+    <div class="metric-icon"><i class="bi bi-person-dash-fill"></i></div>
+    <div class="metric-body">
+      <div class="metric-value" id="stat-not-checked-in">{{ not_checked_in }}</div>
+      <div class="metric-label">Currently Out</div>
+    </div>
+  </a>
+  <a href="{% url 'attendance:late_arrivals' %}" class="metric-card metric-amber" style="text-decoration:none">
+    <div class="metric-icon"><i class="bi bi-alarm-fill"></i></div>
+    <div class="metric-body">
+      <div class="metric-value" id="stat-late-arrivals">{{ late_arrivals }}</div>
+      <div class="metric-label">Late Arrivals</div>
+    </div>
+  </a>
+  <a href="{% url 'events:list' %}" class="metric-card metric-indigo" style="text-decoration:none">
+    <div class="metric-icon"><i class="bi bi-calendar-check-fill"></i></div>
+    <div class="metric-body">
+      <div class="metric-value" id="stat-event-registrations">{{ total_event_registrations }}</div>
+      <div class="metric-label">Event Registrations</div>
+    </div>
+  </a>
+</div>
+
+<!-- ── STATS LIST ROW (replaces charts) ──────────────────────────────────── -->
+<div class="stats-list-row mb-4">
+
+  <!-- Tasks by status — list -->
+  <div class="stats-list-panel">
+    <div class="stats-list-hdr">
+      <i class="bi bi-check2-square text-primary me-2"></i>
+      <span class="fw-bold">Tasks</span>
+      <span class="text-muted ms-1 small">by status</span>
+    </div>
+    <div class="stats-list-body">
+      {% for item in task_status %}
+      <div class="stats-list-row-item">
+        <span class="stats-dot"
+          style="background:{% if item.status == 'pending' %}#9ca3af{% elif item.status == 'in_progress' %}#3b82f6{% elif item.status == 'under_review' %}#8b5cf6{% else %}#10b981{% endif %}">
+        </span>
+        <span class="stats-label">
+          {% if item.status == 'pending' %}Pending
+          {% elif item.status == 'in_progress' %}In Progress
+          {% elif item.status == 'under_review' %}Under Review
+          {% elif item.status == 'completed' %}Completed
+          {% else %}{{ item.status }}{% endif %}
+        </span>
+        <span class="stats-bar-wrap">
+          <span class="stats-bar"
+            style="width:{% widthratio item.count task_status_total 100 %}%;
+                   background:{% if item.status == 'pending' %}#9ca3af{% elif item.status == 'in_progress' %}#3b82f6{% elif item.status == 'under_review' %}#8b5cf6{% else %}#10b981{% endif %}">
+          </span>
+        </span>
+        <span class="stats-count">{{ item.count }}</span>
+      </div>
+      {% empty %}
+      <div class="text-muted small py-2">No task data</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Suggestions by category — list -->
+  <div class="stats-list-panel">
+    <div class="stats-list-hdr">
+      <i class="bi bi-lightbulb-fill text-warning me-2"></i>
+      <span class="fw-bold">Suggestions</span>
+      <span class="text-muted ms-1 small">by category</span>
+    </div>
+    <div class="stats-list-body">
+      {% for item in suggestion_categories %}
+      <div class="stats-list-row-item">
+        <span class="stats-dot" style="background:#f59e0b"></span>
+        <span class="stats-label">{{ item.category }}</span>
+        <span class="stats-bar-wrap">
+          <span class="stats-bar" style="width:{% widthratio item.count suggestion_categories_total 100 %}%;background:#f59e0b"></span>
+        </span>
+        <span class="stats-count">{{ item.count }}</span>
+      </div>
+      {% empty %}
+      <div class="text-muted small py-2">No suggestion data</div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+{% endif %}
+
+<!-- ── ALL USERS: MAIN CONTENT ────────────────────────────────────────── -->
+<div class="dash-main-grid">
+
+  <!-- My Tasks -->
+  <div class="panel">
+    <div class="panel-hdr">
+      <h2><i class="bi bi-check2-square me-2 text-primary"></i>My Tasks</h2>
+      <a href="{% url 'tasks:list' %}" class="btn btn-xs btn-outline-primary">View all</a>
+    </div>
+    {% for task in my_tasks %}
+    <a class="dash-task-row" href="{% url 'tasks:detail' task.pk %}">
+      <div class="task-dot {{ task.status }}"></div>
+      <div class="task-info">
+        <span class="task-title">{{ task.title }}</span>
+        <span class="task-meta">{{ task.assigned_to }} &middot; due {{ task.due_date }}</span>
+      </div>
+      <span class="task-badge {{ task.priority }}">{{ task.get_priority_display }}</span>
+    </a>
+    {% empty %}
+    <div class="empty-state-sm">
+      <i class="bi bi-clipboard-check text-muted fs-3"></i>
+      <p class="text-muted small mt-1">No tasks right now</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Announcements -->
+  <div class="panel">
+    <div class="panel-hdr">
+      <h2><i class="bi bi-megaphone-fill me-2 text-warning"></i>Announcements</h2>
+    </div>
+    {% for item in announcements %}
+    <div class="dash-announce-row">
+      <div class="announce-dot"></div>
+      <div>
+        <div class="fw-semibold small">{{ item.title }}</div>
+        <div class="text-muted" style="font-size:.78rem">{{ item.created_at|date:"M d, Y" }}</div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="empty-state-sm">
+      <i class="bi bi-megaphone text-muted fs-3"></i>
+      <p class="text-muted small mt-1">No announcements</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Events -->
+  <div class="panel">
+    <div class="panel-hdr">
+      <h2><i class="bi bi-calendar-event-fill me-2 text-success"></i>Upcoming Events</h2>
+      <a href="{% url 'events:list' %}" class="btn btn-xs btn-outline-success">View all</a>
+    </div>
+    {% for event in events %}
+    <a class="dash-event-row" href="{% url 'events:detail' event.pk %}">
+      <div class="event-date-box">
+        <span class="event-month">{{ event.start_date|date:"M" }}</span>
+        <span class="event-day">{{ event.start_date|date:"d" }}</span>
+      </div>
+      <div class="event-info">
+        <span class="event-title">{{ event.title }}</span>
+        <span class="event-loc text-muted small"><i class="bi bi-pin-map me-1"></i>{{ event.location }}</span>
+      </div>
+    </a>
+    {% empty %}
+    <div class="empty-state-sm">
+      <i class="bi bi-calendar-x text-muted fs-3"></i>
+      <p class="text-muted small mt-1">No upcoming events</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Attendance (own) -->
+  <div class="panel">
+    <div class="panel-hdr">
+      <h2><i class="bi bi-clock-history me-2 text-info"></i>My Attendance</h2>
+      <a href="{% url 'attendance:home' %}" class="btn btn-xs btn-outline-info">Log</a>
+    </div>
+    {% for rec in my_attendance %}
+    <div class="dash-att-row">
+      <span class="att-date">{{ rec.check_in_time|date:"M d" }}</span>
+      <span class="time-chip in">{{ rec.check_in_time|date:"H:i" }}</span>
+      {% if rec.check_out_time %}
+      <span class="time-chip out">{{ rec.check_out_time|date:"H:i" }}</span>
+      <span class="hours-badge">{{ rec.total_hours|floatformat:1 }}h</span>
+      {% else %}
+      <span class="time-chip active">Active</span>
+      {% endif %}
+      {% if rec.arrival_status %}
+      <span class="status-chip {{ rec.arrival_status }}">{{ rec.get_arrival_status_display }}</span>
+      {% endif %}
+    </div>
+    {% empty %}
+    <div class="empty-state-sm">
+      <i class="bi bi-geo-alt text-muted fs-3"></i>
+      <p class="text-muted small mt-1">No attendance records</p>
+    </div>
+    {% endfor %}
+  </div>
+
+</div><!-- end dash-main-grid -->
+
+<style>
+/* Greeting */
+.dash-greeting{
+  display:flex;justify-content:space-between;align-items:center;
+  background:linear-gradient(135deg,#0a1628,#1e40af);
+  border-radius:14px;padding:22px 28px;margin-bottom:24px;
+}
+.greeting-text{font-size:1.15rem;color:#fff;margin-bottom:4px}
+.greeting-sub{font-size:.82rem;color:rgba(255,255,255,.6);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dash-clock{font-size:1.9rem;font-weight:800;color:#f59e0b;letter-spacing:2px;font-variant-numeric:tabular-nums}
+
+/* Role pills */
+.role-pill{font-size:.68rem;font-weight:700;padding:2px 10px;border-radius:20px;letter-spacing:.5px;text-transform:uppercase}
+.role-pill.admin{background:#fee2e2;color:#991b1b}
+.role-pill.pm{background:#dbeafe;color:#1d4ed8}
+.role-pill.dh{background:#ede9fe;color:#5b21b6}
+.role-pill.staff{background:#dcfce7;color:#166534}
+.role-pill.intern{background:#fef3c7;color:#92400e}
+
+/* Metrics */
+.metric-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:16px;margin-bottom:24px}
+@media(max-width:1200px){.metric-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:900px){.metric-grid{grid-template-columns:repeat(2,1fr)}}
+.metric-card{
+  border-radius:12px;padding:18px 20px;display:flex;align-items:center;gap:14px;
+  position:relative;overflow:hidden;
+}
+.metric-blue{background:linear-gradient(135deg,#1e40af,#3b82f6);color:#fff}
+.metric-green{background:linear-gradient(135deg,#065f46,#059669);color:#fff}
+.metric-teal{background:linear-gradient(135deg,#0e7490,#06b6d4);color:#fff}
+.metric-amber{background:linear-gradient(135deg,#92400e,#f59e0b);color:#fff}
+.metric-rose{background:linear-gradient(135deg,#9f1239,#f43f5e);color:#fff}
+.metric-indigo{background:linear-gradient(135deg,#3730a3,#6366f1);color:#fff}
+.metric-icon{font-size:1.8rem;opacity:.85}
+.metric-value{font-size:2rem;font-weight:800;line-height:1;color:#fff}
+.metric-label{font-size:.75rem;opacity:.9;margin-top:2px;font-weight:600;letter-spacing:.3px;color:#fff}
+.pulse-dot{animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+/* Clickable metric cards */
+a.metric-card{cursor:pointer;transition:transform .15s,box-shadow .15s}
+a.metric-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.25)}
+
+/* ── Stats list panels (replacing charts) ── */
+.stats-list-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:768px){.stats-list-row{grid-template-columns:1fr}}
+.stats-list-panel{
+  background:#fff;border-radius:12px;padding:18px 20px;
+  border:1px solid #e5e7eb;box-shadow:0 1px 4px rgba(0,0,0,.04);
+}
+.stats-list-hdr{display:flex;align-items:center;margin-bottom:14px;font-size:.9rem}
+.stats-list-body{display:flex;flex-direction:column;gap:9px}
+.stats-list-row-item{display:flex;align-items:center;gap:10px;font-size:.83rem}
+.stats-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.stats-label{width:110px;color:#374151;font-weight:500;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stats-bar-wrap{flex:1;height:8px;background:#f3f4f6;border-radius:4px;overflow:hidden}
+.stats-bar{display:block;height:100%;border-radius:4px;min-width:4px;transition:width .4s ease}
+.stats-count{font-weight:700;color:#111827;min-width:24px;text-align:right}
+
+/* Main grid */
+.dash-main-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+@media(max-width:768px){.dash-main-grid{grid-template-columns:1fr}}
+
+/* Panel header */
+.panel-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.btn-xs{font-size:.72rem;padding:3px 10px;border-radius:6px}
+
+/* Tasks */
+.dash-task-row{
+  display:flex;align-items:center;gap:10px;padding:9px 0;
+  border-bottom:1px solid #eef2f7;text-decoration:none;color:inherit;
+}
+.dash-task-row:last-child{border-bottom:none}
+.dash-task-row:hover{background:#f8faff;margin:0 -20px;padding-left:20px;padding-right:20px;border-radius:6px}
+.task-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.task-dot.pending{background:#9ca3af}
+.task-dot.in_progress{background:#3b82f6}
+.task-dot.under_review{background:#8b5cf6}
+.task-dot.completed{background:#10b981}
+.task-info{flex:1;display:flex;flex-direction:column;gap:1px}
+.task-title{font-size:.88rem;font-weight:600;color:#111827}
+.task-meta{font-size:.72rem;color:#9ca3af}
+.task-badge{font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;flex-shrink:0}
+.task-badge.low{background:#dcfce7;color:#166534}
+.task-badge.medium{background:#fef9c3;color:#854d0e}
+.task-badge.high{background:#fee2e2;color:#991b1b}
+.task-badge.critical{background:#4c0519;color:#fda4af}
+
+/* Announcements */
+.dash-announce-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #eef2f7}
+.dash-announce-row:last-child{border-bottom:none}
+.announce-dot{width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0;margin-top:4px}
+
+/* Events */
+.dash-event-row{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #eef2f7;text-decoration:none;color:inherit}
+.dash-event-row:last-child{border-bottom:none}
+.dash-event-row:hover{background:#f8faff;margin:0 -20px;padding:9px 20px;border-radius:6px}
+.event-date-box{
+  width:44px;height:44px;border-radius:8px;
+  background:linear-gradient(135deg,#1e40af,#3b82f6);
+  color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;
+}
+.event-month{font-size:.55rem;font-weight:700;text-transform:uppercase;opacity:.85}
+.event-day{font-size:1.1rem;font-weight:800;line-height:1}
+.event-info{display:flex;flex-direction:column;gap:1px}
+.event-title{font-size:.88rem;font-weight:600;color:#111827}
+.event-loc{font-size:.72rem}
+
+/* Attendance */
+.dash-att-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid #eef2f7;font-size:.8rem}
+.dash-att-row:last-child{border-bottom:none}
+.att-date{font-weight:600;color:#374151;min-width:46px}
+.time-chip{display:inline-flex;align-items:center;font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:20px}
+.time-chip.in{background:#dbeafe;color:#1d4ed8}
+.time-chip.out{background:#fef3c7;color:#92400e}
+.time-chip.active{background:#dcfce7;color:#166534}
+.hours-badge{background:#1e40af;color:#fff;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:20px}
+.status-chip{font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:20px;text-transform:uppercase}
+.status-chip.early{background:#dcfce7;color:#166534}
+.status-chip.on_time{background:#dbeafe;color:#1d4ed8}
+.status-chip.late{background:#fee2e2;color:#991b1b}
+
+/* Empty states */
+.empty-state-sm{text-align:center;padding:20px 0}
+
+/* ── Reminders mini-strip ── */
+.rem-strip{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}
+.rem-strip-item{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 14px;border-radius:10px;border:1.5px solid #e5e7eb;
+  background:#fff;text-decoration:none;color:inherit;font-size:.82rem;
+  transition:all .15s;flex-shrink:0;
+}
+.rem-strip-item:hover{border-color:#93c5fd;background:#eff6ff;color:#1e40af}
+.rem-strip-item.overdue{border-color:#fca5a5;background:#fef2f2}
+.rem-strip-item.today{border-color:#fcd34d;background:#fefce8;font-weight:700}
+.rem-strip-item.near{border-color:#fdba74;background:#fff7ed}
+.rem-strip-pill{font-size:.65rem;font-weight:700;padding:1px 7px;border-radius:20px}
+.rem-pill-critical{background:#fee2e2;color:#991b1b}
+.rem-pill-high{background:#ffedd5;color:#c2410c}
+.rem-pill-medium{background:#fef3c7;color:#92400e}
+.rem-pill-low{background:#dcfce7;color:#166534}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Live clock + greeting
+(function(){
+  function pad(n){return String(n).padStart(2,'0')}
+  function tick(){
+    const now=new Date();
+    const h=now.getHours();
+    document.getElementById('dashClock').textContent=pad(h)+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
+    const greet=h<12?'Good morning':h<17?'Good afternoon':'Good evening';
+    document.getElementById('greetWord').textContent=greet;
+    document.getElementById('dashDate').textContent=now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  }
+  tick();setInterval(tick,1000);
+})();
+
+// ── Due-date reminder sounds & countdown labels ──────────────────────────
+(function(){
+  const TODAY = new Date('{{ today_iso }}');
+  const calItems = {{ cal_items_json|safe }};
+  if (!calItems || !calItems.length) return;
+
+  function daysDiff(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    return Math.round((d - new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate())) / 86400000);
+  }
+
+  // Build and insert the reminders strip under the dashboard header
+  function buildStrip() {
+    const upcoming = calItems
+      .filter(i => daysDiff(i.date) <= 7)
+      .sort((a,b) => daysDiff(a.date) - daysDiff(b.date))
+      .slice(0, 8);
+    if (!upcoming.length) return;
+
+    const strip = document.createElement('div');
+    strip.className = 'rem-strip';
+    strip.id = 'remStripDash';
+
+    upcoming.forEach(item => {
+      const days = daysDiff(item.date);
+      let cls = '', label = '';
+      if (days < 0)      { cls = 'overdue'; label = Math.abs(days) + 'd overdue'; }
+      else if (days === 0){ cls = 'today';   label = 'TODAY'; }
+      else if (days <= 3) { cls = 'near';    label = 'in ' + days + 'd'; }
+      else                { cls = '';        label = 'in ' + days + 'd'; }
+
+      const icon = item.type === 'event' ? '📅' : '✅';
+      const pill = `<span class="rem-strip-pill rem-pill-${item.priority}">${item.priority}</span>`;
+      const a = document.createElement('a');
+      a.href = item.url;
+      a.className = 'rem-strip-item ' + cls;
+      a.innerHTML = `${icon} <span>${item.title.slice(0,28)}${item.title.length>28?'…':''}</span>${pill}<span style="color:#9ca3af;font-size:.7rem">${label}</span>`;
+      strip.appendChild(a);
+    });
+
+    // Insert after the greeting bar
+    const greeting = document.querySelector('.dash-greeting');
+    if (greeting && greeting.nextSibling) {
+      greeting.parentNode.insertBefore(strip, greeting.nextSibling);
+    }
+  }
+  buildStrip();
+
+  // ── Play notification sound based on urgency ──
+  function playDueSounds() {
+    let highest = null;
+    calItems.forEach(item => {
+      const days = daysDiff(item.date);
+      if (days < 0 || days === 0) {
+        highest = 'critical';
+      } else if (days === 1 && highest !== 'critical') {
+        highest = 'high';
+      } else if (days <= 3 && !highest) {
+        highest = 'medium';
+      }
+    });
+    if (highest && window.portalSound) window.portalSound.play(highest);
+  }
+
+  // Play once on load (after 3 s to not startle), then every 5 minutes
+  setTimeout(playDueSounds, 3000);
+  setInterval(playDueSounds, 5 * 60 * 1000);
+})();
+
+{% if user.can_monitor_attendance %}
+// ── Live attendance counter — polls every 15 s ───────────────────────────
+(function () {
+  var POLL_INTERVAL = 15000; // 15 seconds
+  var statsUrl = "{% url 'dashboard:live_stats' %}";
+
+  var els = {
+    checkedInNow:   document.getElementById('stat-checked-in-now'),
+    attendanceToday: document.getElementById('stat-attendance-today'),
+    notCheckedIn:   document.getElementById('stat-not-checked-in'),
+    lateArrivals:   document.getElementById('stat-late-arrivals'),
+    eventRegistrations: document.getElementById('stat-event-registrations'),
+  };
+
+  function fetchStats() {
+    fetch(statsUrl, { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data) return;
+        if (els.checkedInNow)         els.checkedInNow.textContent         = data.checked_in_now;
+        if (els.attendanceToday)      els.attendanceToday.textContent      = data.attendance_today;
+        if (els.notCheckedIn)         els.notCheckedIn.textContent         = data.not_checked_in;
+        if (els.lateArrivals)         els.lateArrivals.textContent         = data.late_arrivals;
+        if (els.eventRegistrations)   els.eventRegistrations.textContent   = data.total_event_registrations;
+      })
+      .catch(function () { /* silently ignore network errors */ });
+  }
+
+  // First poll after 5 s so the page doesn't fire two requests on load,
+  // then repeat every 15 s.
+  setTimeout(function () {
+    fetchStats();
+    setInterval(fetchStats, POLL_INTERVAL);
+  }, 5000);
+})();
+{% endif %}
+</script>
+{% endblock %}

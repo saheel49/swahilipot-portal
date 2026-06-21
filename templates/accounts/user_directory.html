@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- Header -->
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-people-fill me-2"></i>User Directory</h1>
+    <p class="text-muted mb-0 small">All registered users, grouped by role</p>
+  </div>
+  <a href="{% url 'accounts:user_add' %}" class="btn btn-primary">
+    <i class="bi bi-person-plus me-1"></i>Add User
+  </a>
+</div>
+
+<!-- Summary cards -->
+<div class="ud-summary-row">
+  <div class="ud-summary-card ud-blue">
+    <i class="bi bi-people-fill"></i>
+    <div>
+      <div class="ud-sum-val">{{ total }}</div>
+      <div class="ud-sum-lbl">Total Users</div>
+    </div>
+  </div>
+  <div class="ud-summary-card ud-green">
+    <i class="bi bi-check-circle-fill"></i>
+    <div>
+      <div class="ud-sum-val">{{ active }}</div>
+      <div class="ud-sum-lbl">Active</div>
+    </div>
+  </div>
+  <div class="ud-summary-card ud-red">
+    <i class="bi bi-x-circle-fill"></i>
+    <div>
+      <div class="ud-sum-val">{{ inactive }}</div>
+      <div class="ud-sum-lbl">Inactive</div>
+    </div>
+  </div>
+  <div class="ud-summary-card ud-amber">
+    <i class="bi bi-building"></i>
+    <div>
+      <div class="ud-sum-val">{{ departments.count }}</div>
+      <div class="ud-sum-lbl">Departments</div>
+    </div>
+  </div>
+</div>
+
+<!-- Role tabs -->
+<div class="ud-tabs" id="roleTabs">
+  <button class="ud-tab active" data-target="all">
+    All <span class="ud-tab-count">{{ total }}</span>
+  </button>
+  {% for group in groups %}
+  {% if group.users %}
+  <button class="ud-tab" data-target="{{ group.key }}">
+    {{ group.label }}
+    <span class="ud-tab-count ud-tab-{{ group.colour }}">{{ group.users|length }}</span>
+  </button>
+  {% endif %}
+  {% endfor %}
+</div>
+
+<!-- Search bar -->
+<div class="ud-search-bar">
+  <i class="bi bi-search ud-search-icon"></i>
+  <input type="text" id="udSearch" placeholder="Search by name, username or email…" class="ud-search-input">
+</div>
+
+<!-- User groups -->
+{% for group in groups %}
+{% if group.users %}
+<div class="ud-group" data-role="{{ group.key }}">
+  <div class="ud-group-header">
+    <span class="ud-role-badge ud-role-{{ group.colour }}">{{ group.label }}</span>
+    <span class="ud-group-count">{{ group.users|length }} member{{ group.users|length|pluralize }}</span>
+  </div>
+  <div class="ud-card-grid">
+    {% for u in group.users %}
+    <div class="ud-user-card {% if not u.is_active %}ud-inactive{% endif %}" data-name="{{ u.get_full_name|lower }} {{ u.username|lower }} {{ u.email|lower }}">
+      <!-- Avatar -->
+      <div class="ud-avatar-wrap">
+        {% if u.profile_photo %}
+          <img src="{{ u.profile_photo.url }}" class="ud-avatar" alt="{{ u }}">
+        {% else %}
+          <div class="ud-avatar-placeholder ud-av-{{ group.colour }}">
+            {{ u.first_name|first|upper|default:u.username|first|upper }}
+          </div>
+        {% endif %}
+        <span class="ud-status-dot {% if u.is_active %}dot-active{% else %}dot-inactive{% endif %}"></span>
+      </div>
+
+      <!-- Info -->
+      <div class="ud-card-info">
+        <div class="ud-card-name">{{ u.get_full_name|default:u.username }}</div>
+        <div class="ud-card-username text-muted">@{{ u.username }}</div>
+        {% if u.department %}
+        <div class="ud-card-dept">
+          <i class="bi bi-building me-1"></i>{{ u.department }}
+        </div>
+        {% endif %}
+        {% if u.email %}
+        <div class="ud-card-email text-muted">
+          <i class="bi bi-envelope me-1"></i>{{ u.email }}
+        </div>
+        {% endif %}
+        {% if u.phone_number %}
+        <div class="ud-card-phone text-muted">
+          <i class="bi bi-phone me-1"></i>{{ u.phone_number }}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Actions -->
+      <div class="ud-card-actions">
+        <span class="ud-role-pill ud-role-{{ group.colour }}">{{ group.label }}</span>
+        <div class="ud-action-btns">
+          <a href="{% url 'accounts:user_edit' u.pk %}" class="btn btn-xs btn-outline-primary" title="Edit user">
+            <i class="bi bi-pencil"></i>
+          </a>
+          <a href="{% url 'accounts:user_reset_password' u.pk %}" class="btn btn-xs btn-outline-warning" title="Reset password">
+            <i class="bi bi-key"></i>
+          </a>
+          <form method="post" action="{% url 'accounts:user_toggle' u.pk %}" style="display:inline">
+            {% csrf_token %}
+            <button type="submit"
+                    class="btn btn-xs {% if u.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}"
+                    title="{% if u.is_active %}Deactivate{% else %}Activate{% endif %}"
+                    onclick="return confirm('{% if u.is_active %}Deactivate{% else %}Activate{% endif %} {{ u }}?')">
+              <i class="bi {% if u.is_active %}bi-person-x{% else %}bi-person-check{% endif %}"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+
+<style>
+/* Summary row */
+.ud-summary-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+@media(max-width:700px){.ud-summary-row{grid-template-columns:repeat(2,1fr)}}
+.ud-summary-card{
+  border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;
+  color:#fff;font-size:1.5rem;
+}
+.ud-blue{background:linear-gradient(135deg,#0F4C81,#1E88E5)}
+.ud-green{background:linear-gradient(135deg,#065f46,#059669)}
+.ud-red{background:linear-gradient(135deg,#991b1b,#dc2626)}
+.ud-amber{background:linear-gradient(135deg,#92400e,#f59e0b)}
+.ud-sum-val{font-size:1.8rem;font-weight:800;line-height:1}
+.ud-sum-lbl{font-size:.75rem;opacity:.85;font-weight:500}
+
+/* Tabs */
+.ud-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.ud-tab{
+  padding:7px 16px;border-radius:20px;border:1.5px solid #e5e7eb;
+  background:#fff;font-size:.82rem;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;gap:6px;transition:all .2s;color:#374151;
+}
+.ud-tab:hover{border-color:#0F4C81;color:#0F4C81}
+.ud-tab.active{background:#0F4C81;border-color:#0F4C81;color:#fff}
+.ud-tab-count{
+  font-size:.7rem;font-weight:700;padding:1px 7px;border-radius:20px;
+  background:rgba(0,0,0,.1);
+}
+.ud-tab.active .ud-tab-count{background:rgba(255,255,255,.25)}
+.ud-tab-primary{background:#dbeafe;color:#1d4ed8}
+.ud-tab-danger{background:#fee2e2;color:#991b1b}
+.ud-tab-success{background:#dcfce7;color:#166534}
+.ud-tab-warning{background:#fef3c7;color:#92400e}
+.ud-tab-purple{background:#ede9fe;color:#5b21b6}
+
+/* Search */
+.ud-search-bar{position:relative;margin-bottom:20px}
+.ud-search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#9ca3af;font-size:1rem}
+.ud-search-input{
+  width:100%;padding:11px 14px 11px 40px;border:1.5px solid #e5e7eb;border-radius:10px;
+  font-size:.9rem;outline:none;transition:border-color .2s;
+}
+.ud-search-input:focus{border-color:#0F4C81;box-shadow:0 0 0 3px rgba(15,76,129,.1)}
+
+/* Group */
+.ud-group{margin-bottom:28px}
+.ud-group[style*="none"]{display:none}
+.ud-group-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.ud-group-count{font-size:.78rem;color:#9ca3af;font-weight:600}
+
+/* Role badges */
+.ud-role-badge,.ud-role-pill{
+  font-size:.72rem;font-weight:700;padding:3px 12px;border-radius:20px;
+  text-transform:uppercase;letter-spacing:.5px;
+}
+.ud-role-danger{background:#fee2e2;color:#991b1b}
+.ud-role-primary{background:#dbeafe;color:#1d4ed8}
+.ud-role-purple{background:#ede9fe;color:#5b21b6}
+.ud-role-success{background:#dcfce7;color:#166534}
+.ud-role-warning{background:#fef3c7;color:#92400e}
+
+/* Card grid */
+.ud-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+
+/* User card */
+.ud-user-card{
+  background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;
+  padding:16px;display:flex;gap:12px;align-items:flex-start;
+  transition:box-shadow .2s,border-color .2s;
+}
+.ud-user-card:hover{box-shadow:0 4px 16px rgba(15,76,129,.1);border-color:#93c5fd}
+.ud-inactive{opacity:.55;background:#f9fafb}
+
+/* Avatar */
+.ud-avatar-wrap{position:relative;flex-shrink:0}
+.ud-avatar,.ud-avatar-placeholder{
+  width:52px;height:52px;border-radius:50%;object-fit:cover;
+}
+.ud-avatar-placeholder{
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.2rem;font-weight:800;color:#fff;
+}
+.ud-av-danger{background:linear-gradient(135deg,#991b1b,#dc2626)}
+.ud-av-primary{background:linear-gradient(135deg,#0F4C81,#1E88E5)}
+.ud-av-purple{background:linear-gradient(135deg,#5b21b6,#8b5cf6)}
+.ud-av-success{background:linear-gradient(135deg,#065f46,#059669)}
+.ud-av-warning{background:linear-gradient(135deg,#92400e,#f59e0b)}
+.ud-status-dot{
+  position:absolute;bottom:2px;right:2px;
+  width:12px;height:12px;border-radius:50%;border:2px solid #fff;
+}
+.dot-active{background:#10b981}
+.dot-inactive{background:#9ca3af}
+
+/* Card info */
+.ud-card-info{flex:1;min-width:0}
+.ud-card-name{font-weight:700;font-size:.92rem;color:#111827;margin-bottom:1px}
+.ud-card-username{font-size:.75rem;margin-bottom:4px}
+.ud-card-dept,.ud-card-email,.ud-card-phone{font-size:.75rem;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Actions */
+.ud-card-actions{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}
+.ud-action-btns{display:flex;gap:4px}
+.btn-xs{font-size:.72rem;padding:4px 8px;border-radius:6px;line-height:1}
+</style>
+
+<script>
+// Tabs
+document.querySelectorAll('.ud-tab').forEach(function(tab) {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.ud-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const target = tab.dataset.target;
+    document.querySelectorAll('.ud-group').forEach(function(group) {
+      if (target === 'all' || group.dataset.role === target) {
+        group.style.display = '';
+      } else {
+        group.style.display = 'none';
+      }
+    });
+  });
+});
+
+// Live search
+document.getElementById('udSearch').addEventListener('input', function() {
+  const q = this.value.toLowerCase().trim();
+  document.querySelectorAll('.ud-user-card').forEach(function(card) {
+    const name = card.dataset.name || '';
+    card.style.display = (!q || name.includes(q)) ? '' : 'none';
+  });
+  // Hide empty groups
+  document.querySelectorAll('.ud-group').forEach(function(group) {
+    const visible = group.querySelectorAll('.ud-user-card:not([style*="none"])').length;
+    group.style.display = visible ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

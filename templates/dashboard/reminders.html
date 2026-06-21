@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-calendar-check-fill me-2"></i>Reminders & Calendar</h1>
+    <p class="text-muted small mb-0">Your tasks and events in one view. Get notified as due dates approach.</p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- ── LEFT: Calendar ── -->
+  <div class="col-lg-7">
+    <div class="panel p-0 overflow-hidden">
+      <!-- Calendar nav -->
+      <div class="cal-header d-flex align-items-center justify-content-between px-4 py-3">
+        <button class="btn btn-sm btn-outline-primary" id="calPrev">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <h2 class="mb-0 fw-bold" id="calTitle" style="font-size:1.1rem"></h2>
+        <button class="btn btn-sm btn-outline-primary" id="calNext">
+          <i class="bi bi-chevron-right"></i>
+        </button>
+      </div>
+      <!-- Day-of-week headers -->
+      <div class="cal-dow-row">
+        <div class="cal-dow">Mon</div>
+        <div class="cal-dow">Tue</div>
+        <div class="cal-dow">Wed</div>
+        <div class="cal-dow">Thu</div>
+        <div class="cal-dow">Fri</div>
+        <div class="cal-dow">Sat</div>
+        <div class="cal-dow">Sun</div>
+      </div>
+      <!-- Calendar grid -->
+      <div class="cal-grid" id="calGrid"></div>
+    </div>
+  </div>
+
+  <!-- ── RIGHT: Upcoming list + legend ── -->
+  <div class="col-lg-5">
+    <!-- Legend -->
+    <div class="panel mb-3 py-2 px-3 d-flex gap-3 flex-wrap align-items-center">
+      <span class="small fw-bold text-muted">Legend:</span>
+      <span class="cal-dot-task me-1"></span><span class="small">Task due</span>
+      <span class="cal-dot-event me-1 ms-2"></span><span class="small">Event</span>
+      <span class="cal-dot-today me-1 ms-2"></span><span class="small">Today</span>
+      <span class="cal-dot-critical me-1 ms-2"></span><span class="small">Critical</span>
+    </div>
+
+    <!-- Upcoming items -->
+    <div class="panel">
+      <h3 class="fw-bold mb-3" style="font-size:.95rem">
+        <i class="bi bi-list-ul me-2 text-primary"></i>Upcoming Deadlines
+      </h3>
+      <div id="upcomingList">
+        {% for task in upcoming_tasks %}
+        <a href="/tasks/{{ task.pk }}/" class="rem-item rem-item-{{ task.priority }}">
+          <div class="rem-icon rem-icon-task">
+            <i class="bi bi-check2-square"></i>
+          </div>
+          <div class="rem-body">
+            <div class="rem-title">{{ task.title }}</div>
+            <div class="rem-meta">
+              Due <strong>{{ task.due_date|date:"d M Y" }}</strong>
+              &middot;
+              <span class="rem-badge rem-badge-{{ task.priority }}">{{ task.get_priority_display }}</span>
+            </div>
+          </div>
+          <div class="rem-date-col" id="countdown-task-{{ task.pk }}"
+               data-due="{{ task.due_date|date:'Y-m-d' }}">
+          </div>
+        </a>
+        {% endfor %}
+        {% for event in upcoming_events %}
+        <a href="/events/{{ event.pk }}/" class="rem-item rem-item-medium">
+          <div class="rem-icon rem-icon-event">
+            <i class="bi bi-calendar-event-fill"></i>
+          </div>
+          <div class="rem-body">
+            <div class="rem-title">{{ event.title }}</div>
+            <div class="rem-meta">
+              <strong>{{ event.start_date|date:"d M Y" }}</strong>
+              &middot; {{ event.location }}
+            </div>
+          </div>
+          <div class="rem-date-col" id="countdown-event-{{ event.pk }}"
+               data-due="{{ event.start_date|date:'Y-m-d' }}">
+          </div>
+        </a>
+        {% empty %}
+        {% endfor %}
+        {% if not upcoming_tasks and not upcoming_events %}
+        <div class="text-center py-4 text-muted">
+          <i class="bi bi-calendar-check fs-2"></i>
+          <p class="mt-2 small">Nothing coming up. Enjoy the quiet!</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Day detail modal -->
+<div class="modal fade" id="dayModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dayModalTitle">Events on this day</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="dayModalBody"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* Calendar */
+.cal-header{background:#f8faff;border-bottom:1px solid #e5e7eb}
+.cal-dow-row{display:grid;grid-template-columns:repeat(7,1fr);background:#eff6ff}
+.cal-dow{text-align:center;font-size:.7rem;font-weight:700;text-transform:uppercase;
+         color:#6b7280;padding:8px 0;letter-spacing:.5px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+.cal-cell{
+  min-height:72px;border:1px solid #f3f4f6;padding:4px 5px;
+  cursor:pointer;transition:background .15s;position:relative;
+}
+.cal-cell:hover{background:#f0f7ff}
+.cal-cell.today{background:#eff6ff;border-color:#93c5fd}
+.cal-cell.other-month .cal-day-num{color:#d1d5db}
+.cal-day-num{
+  font-size:.78rem;font-weight:700;color:#374151;
+  width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;margin-bottom:2px;
+}
+.cal-cell.today .cal-day-num{background:#1e40af;color:#fff}
+.cal-events{display:flex;flex-direction:column;gap:2px}
+.cal-ev-pill{
+  font-size:.62rem;font-weight:600;padding:1px 5px;border-radius:4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
+}
+.cal-ev-task{background:#dbeafe;color:#1d4ed8}
+.cal-ev-event{background:#dcfce7;color:#166534}
+.cal-ev-critical{background:#fee2e2;color:#991b1b}
+.cal-ev-high{background:#ffedd5;color:#c2410c}
+.cal-ev-more{font-size:.6rem;color:#9ca3af;font-weight:600}
+
+/* Legend dots */
+.cal-dot-task,.cal-dot-event,.cal-dot-today,.cal-dot-critical{
+  display:inline-block;width:10px;height:10px;border-radius:50%;
+}
+.cal-dot-task{background:#3b82f6}
+.cal-dot-event{background:#22c55e}
+.cal-dot-today{background:#1e40af}
+.cal-dot-critical{background:#ef4444}
+
+/* Reminder items */
+.rem-item{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:10px 0;border-bottom:1px solid #f3f4f6;
+  text-decoration:none;color:inherit;transition:background .15s;
+}
+.rem-item:last-child{border-bottom:none}
+.rem-item:hover{background:#f8faff;margin:0 -16px;padding-left:16px;padding-right:16px;border-radius:8px}
+.rem-icon{
+  width:36px;height:36px;border-radius:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:1rem;
+}
+.rem-icon-task{background:#dbeafe;color:#1d4ed8}
+.rem-icon-event{background:#dcfce7;color:#16a34a}
+.rem-body{flex:1;min-width:0}
+.rem-title{font-weight:600;font-size:.88rem;color:#111827;margin-bottom:2px}
+.rem-meta{font-size:.75rem;color:#6b7280;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.rem-badge{font-size:.65rem;font-weight:700;padding:1px 7px;border-radius:20px}
+.rem-badge-low{background:#dcfce7;color:#166534}
+.rem-badge-medium{background:#fef3c7;color:#92400e}
+.rem-badge-high{background:#ffedd5;color:#c2410c}
+.rem-badge-critical{background:#fee2e2;color:#991b1b}
+.rem-date-col{
+  flex-shrink:0;text-align:right;font-size:.72rem;
+  color:#6b7280;min-width:52px;font-weight:600;
+}
+.rem-date-col.overdue{color:#ef4444}
+.rem-date-col.today-due{color:#f59e0b;font-weight:800}
+.rem-date-col.near{color:#f97316}
+</style>
+
+<script>
+(function() {
+  const TODAY = new Date('{{ today_iso }}');
+  const calItems = {{ cal_items_json|safe }};
+
+  // ── Calendar rendering ──────────────────────────────────────────────────
+  let viewYear = TODAY.getFullYear();
+  let viewMonth = TODAY.getMonth();
+
+  const MONTHS = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+
+  function renderCalendar() {
+    const grid = document.getElementById('calGrid');
+    const title = document.getElementById('calTitle');
+    title.textContent = MONTHS[viewMonth] + ' ' + viewYear;
+    grid.innerHTML = '';
+
+    // First day of month (0=Sun, adjust to Mon-start)
+    const firstDay = new Date(viewYear, viewMonth, 1);
+    let startOffset = firstDay.getDay() - 1; // Mon=0
+    if (startOffset < 0) startOffset = 6;
+
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const daysInPrev  = new Date(viewYear, viewMonth, 0).getDate();
+
+    // Build a map: "YYYY-MM-DD" → [items]
+    const dayMap = {};
+    calItems.forEach(item => {
+      if (!dayMap[item.date]) dayMap[item.date] = [];
+      dayMap[item.date].push(item);
+    });
+
+    const todayStr = TODAY.toISOString().slice(0, 10);
+
+    // Previous month filler
+    for (let i = startOffset - 1; i >= 0; i--) {
+      const d = daysInPrev - i;
+      grid.appendChild(makeCell(viewYear, viewMonth - 1, d, true, dayMap, todayStr));
+    }
+    // Current month
+    for (let d = 1; d <= daysInMonth; d++) {
+      grid.appendChild(makeCell(viewYear, viewMonth, d, false, dayMap, todayStr));
+    }
+    // Next month filler
+    const total = startOffset + daysInMonth;
+    const remaining = total % 7 === 0 ? 0 : 7 - (total % 7);
+    for (let d = 1; d <= remaining; d++) {
+      grid.appendChild(makeCell(viewYear, viewMonth + 1, d, true, dayMap, todayStr));
+    }
+  }
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function makeCell(y, m, d, otherMonth, dayMap, todayStr) {
+    // normalise month
+    const date = new Date(y, m, d);
+    const ds = date.getFullYear() + '-' + pad(date.getMonth()+1) + '-' + pad(date.getDate());
+
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell' + (otherMonth ? ' other-month' : '') + (ds === todayStr ? ' today' : '');
+
+    const numEl = document.createElement('div');
+    numEl.className = 'cal-day-num';
+    numEl.textContent = date.getDate();
+    cell.appendChild(numEl);
+
+    const items = dayMap[ds] || [];
+    if (items.length) {
+      const evWrap = document.createElement('div');
+      evWrap.className = 'cal-events';
+      const show = items.slice(0, 3);
+      show.forEach(item => {
+        const pill = document.createElement('div');
+        const cls = item.type === 'event' ? 'cal-ev-event'
+                  : item.priority === 'critical' ? 'cal-ev-critical'
+                  : item.priority === 'high' ? 'cal-ev-high'
+                  : 'cal-ev-task';
+        pill.className = 'cal-ev-pill ' + cls;
+        pill.textContent = item.title;
+        evWrap.appendChild(pill);
+      });
+      if (items.length > 3) {
+        const more = document.createElement('div');
+        more.className = 'cal-ev-more';
+        more.textContent = '+' + (items.length - 3) + ' more';
+        evWrap.appendChild(more);
+      }
+      cell.appendChild(evWrap);
+
+      cell.addEventListener('click', () => showDayModal(ds, items));
+    }
+    return cell;
+  }
+
+  function showDayModal(ds, items) {
+    const d = new Date(ds + 'T00:00:00');
+    document.getElementById('dayModalTitle').textContent =
+      d.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+
+    const body = document.getElementById('dayModalBody');
+    body.innerHTML = '';
+    items.forEach(item => {
+      const row = document.createElement('a');
+      row.href = item.url;
+      row.className = 'rem-item';
+      row.innerHTML =
+        `<div class="rem-icon ${item.type === 'event' ? 'rem-icon-event' : 'rem-icon-task'}">
+           <i class="bi ${item.type === 'event' ? 'bi-calendar-event-fill' : 'bi-check2-square'}"></i>
+         </div>
+         <div class="rem-body">
+           <div class="rem-title">${item.title}</div>
+           <div class="rem-meta">
+             <span class="rem-badge rem-badge-${item.priority}">${item.priority}</span>
+             &middot; ${item.type === 'task' ? 'Task' : 'Event'}
+           </div>
+         </div>`;
+      body.appendChild(row);
+    });
+
+    new bootstrap.Modal(document.getElementById('dayModal')).show();
+  }
+
+  document.getElementById('calPrev').addEventListener('click', () => {
+    viewMonth--;
+    if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+    renderCalendar();
+  });
+  document.getElementById('calNext').addEventListener('click', () => {
+    viewMonth++;
+    if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+    renderCalendar();
+  });
+
+  renderCalendar();
+
+  // ── Countdown labels ────────────────────────────────────────────────────
+  function updateCountdowns() {
+    document.querySelectorAll('[data-due]').forEach(el => {
+      const due = new Date(el.dataset.due + 'T00:00:00');
+      const diffMs = due - new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate());
+      const days = Math.round(diffMs / 86400000);
+      el.classList.remove('overdue','today-due','near');
+      if (days < 0) {
+        el.textContent = Math.abs(days) + 'd overdue';
+        el.classList.add('overdue');
+      } else if (days === 0) {
+        el.textContent = 'TODAY';
+        el.classList.add('today-due');
+      } else if (days <= 3) {
+        el.textContent = 'in ' + days + 'd';
+        el.classList.add('near');
+      } else {
+        el.textContent = 'in ' + days + 'd';
+      }
+    });
+  }
+  updateCountdowns();
+
+  // ── Due-date notification sounds ────────────────────────────────────────
+  // Check every minute — if any item is due today or overdue, play sound
+  function checkDueSounds() {
+    let highest = null;
+    document.querySelectorAll('[data-due]').forEach(el => {
+      const due = new Date(el.dataset.due + 'T00:00:00');
+      const diffMs = due - new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate());
+      const days = Math.round(diffMs / 86400000);
+      const pri = el.closest('.rem-item')?.querySelector('.rem-badge')?.textContent?.toLowerCase() || 'medium';
+
+      if (days < 0) {
+        // Overdue — critical sound
+        if (highest !== 'critical') highest = 'critical';
+      } else if (days === 0) {
+        // Due today — loud alarm
+        if (highest !== 'critical') highest = 'critical';
+      } else if (days === 1) {
+        // Due tomorrow — high
+        if (!highest || highest === 'low' || highest === 'medium') highest = 'high';
+      } else if (days <= 3) {
+        // Due in 3 days — medium
+        if (!highest || highest === 'low') highest = 'medium';
+      }
+    });
+    if (highest && window.portalSound) {
+      window.portalSound.play(highest);
+    }
+  }
+
+  // Play once on load (small delay), then every 5 minutes
+  setTimeout(checkDueSounds, 2000);
+  setInterval(checkDueSounds, 5 * 60 * 1000);
+
+})();
+</script>
+{% endblock %}

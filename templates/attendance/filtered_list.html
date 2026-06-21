@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-geo-alt-fill me-2"></i>{{ filter_title }}</h1>
+    <p class="text-muted small mb-0">{{ filter_description }}</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'dashboard:home' %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+    </a>
+    {% if user.is_portal_admin %}
+    <a href="{% url 'attendance:sites' %}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-pin-map me-1"></i>Project Sites
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="panel">
+  {% if records %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" style="font-size:.88rem">
+      <thead style="background:#eff6ff">
+        <tr>
+          <th>Staff Member</th>
+          <th>Check In</th>
+          <th>Check Out</th>
+          <th>Hours</th>
+          <th>Arrival</th>
+          <th>Departure</th>
+          <th>Site</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rec in records %}
+        <tr>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              {% if rec.user.profile_photo %}
+              <img src="{{ rec.user.profile_photo.url }}" alt="{{ rec.user }}"
+                   style="width:32px;height:32px;border-radius:50%;object-fit:cover">
+              {% else %}
+              <span style="width:32px;height:32px;border-radius:50%;background:#dbeafe;color:#1d4ed8;
+                           display:inline-flex;align-items:center;justify-content:center;font-size:.85rem">
+                <i class="bi bi-person-fill"></i>
+              </span>
+              {% endif %}
+              <div>
+                <div class="fw-semibold">{{ rec.user.get_full_name|default:rec.user.username }}</div>
+                <div class="text-muted" style="font-size:.75rem">{{ rec.user.get_role_display }}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="fw-semibold">{{ rec.check_in_time|date:"H:i" }}</span>
+            <span class="text-muted small ms-1">{{ rec.check_in_time|date:"d M" }}</span>
+          </td>
+          <td>
+            {% if rec.check_out_time %}
+            <span class="fw-semibold">{{ rec.check_out_time|date:"H:i" }}</span>
+            {% else %}
+            <span class="badge bg-success">Active</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if rec.total_hours %}
+            <span class="hours-badge">{{ rec.total_hours|floatformat:2 }}h</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if rec.arrival_status %}
+            <span class="status-chip {{ rec.arrival_status }}">{{ rec.get_arrival_status_display }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if rec.departure_status %}
+            <span class="status-chip {{ rec.departure_status }}">{{ rec.get_departure_status_display }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-muted small">{{ rec.project_site.name }}</td>
+          <td>
+            {% if rec.status == "checked_in" %}
+            <span class="badge bg-success">Checked In</span>
+            {% else %}
+            <span class="badge bg-secondary">Checked Out</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="mt-3 text-muted small">
+    <i class="bi bi-people me-1"></i>{{ records|length }} record{{ records|length|pluralize }} shown
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <i class="bi bi-calendar-x fs-2 text-muted"></i>
+    <p class="text-muted mt-2">No attendance records match this filter.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-hash me-2"></i>{{ channel.name }}</h1>
+    <span class="text-muted small">{{ channel.department }}</span>
+  </div>
+  <a href="{% url 'communication:home' %}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Back
+  </a>
+</div>
+<div class="panel">
+  <div class="channel-messages mb-4">
+    {% for msg in channel.messages.all %}
+    <div class="ch-msg {% if msg.sender == user %}ch-own{% endif %}">
+      <div class="ch-meta">
+        <strong>{{ msg.sender }}</strong>
+        <span class="text-muted small ms-2">{{ msg.timestamp|date:"M d, H:i" }}</span>
+      </div>
+      <div class="ch-bubble">
+        {{ msg.content }}
+        {% if msg.attachment %}
+        <div class="dm-attachment mt-2">
+          <a href="{{ msg.attachment.url }}" target="_blank" class="attach-link">
+            <i class="bi bi-paperclip me-1"></i>{{ msg.attachment.name|cut:"channel_messages/" }}
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <p class="text-muted">No messages yet. Start the conversation!</p>
+    {% endfor %}
+  </div>
+  <form method="post" enctype="multipart/form-data" class="ch-compose">
+    {% csrf_token %}
+    {% for field in form %}
+    <div class="mb-2">
+      <label class="field-label">{{ field.label }}</label>{{ field }}
+    </div>
+    {% endfor %}
+    <button class="btn btn-primary"><i class="bi bi-send me-1"></i>Post Message</button>
+  </form>
+</div>
+<style>
+.channel-messages{display:flex;flex-direction:column;gap:12px}
+.ch-msg{max-width:78%}
+.ch-own{align-self:flex-end}
+.ch-meta{font-size:.75rem;margin-bottom:3px}
+.ch-bubble{background:#f3f4f6;padding:10px 14px;border-radius:12px;font-size:.9rem}
+.ch-own .ch-bubble{background:#dbeafe}
+.attach-link{font-size:.8rem;color:#1d4ed8;text-decoration:none;display:inline-flex;align-items:center}
+.attach-link:hover{text-decoration:underline}
+.dm-attachment{padding-top:6px;border-top:1px solid rgba(0,0,0,.08)}
+</style>
+{% endblock %}
