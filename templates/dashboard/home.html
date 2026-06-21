@@ -30,13 +30,17 @@
 <!-- ── ADMIN / MANAGER METRICS ─────────────────────────────────────────── -->
 {% if user.can_monitor_attendance %}
 <div class="metric-grid">
+  {% if user.is_portal_admin %}
   <a href="{% url 'accounts:user_directory' %}" class="metric-card metric-blue" style="text-decoration:none">
+  {% else %}
+  <div class="metric-card metric-blue">
+  {% endif %}
     <div class="metric-icon"><i class="bi bi-people-fill"></i></div>
     <div class="metric-body">
       <div class="metric-value">{{ total_staff }}</div>
-      <div class="metric-label">Total Staff</div>
+      <div class="metric-label">{% if user.is_portal_admin or user.can_monitor_all_attendance %}Total Staff{% else %}Dept Staff{% endif %}</div>
     </div>
-  </a>
+  {% if user.is_portal_admin %}</a>{% else %}</div>{% endif %}
   <a href="{% url 'attendance:today' %}" class="metric-card metric-green" style="text-decoration:none">
     <div class="metric-icon"><i class="bi bi-geo-alt-fill"></i></div>
     <div class="metric-body">

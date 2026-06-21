@@ -46,27 +46,56 @@ def home(request):
             "url": f"/events/{e.pk}/",
         })
 
-    # Total registrations across ALL events (replaces the old "QR scans" counter)
     total_event_registrations = (
         Event.objects
         .aggregate(total=db_Sum("form_response_count"))["total"] or 0
     )
+
+    # ── Role-based attendance stats ──────────────────────────────────────
+    # Admin / PM: org-wide stats
+    # Dept Head: filtered to their own department
+    # Staff / Intern: no stats shown
+    dept_id = request.user.department_id
+    is_dept_head_only = (
+        request.user.role == "department_head"
+        and not request.user.is_portal_admin()
+    )
+
+    if is_dept_head_only and dept_id:
+        dept_filter = {"user__department_id": dept_id}
+        total_staff = User.objects.filter(is_active=True, department_id=dept_id).count()
+        attendance_today = Attendance.objects.filter(check_in_time__date=today, **dept_filter).count()
+        checked_in_now = Attendance.objects.filter(status=Attendance.Status.CHECKED_IN, **dept_filter).count()
+        late_arrivals = Attendance.objects.filter(
+            check_in_time__date=today,
+            arrival_status=Attendance.ArrivalStatus.LATE,
+            **dept_filter
+        ).count()
+        not_checked_in = User.objects.filter(is_active=True, department_id=dept_id).exclude(
+            attendance_records__check_in_time__date=today
+        ).count()
+    else:
+        total_staff = User.objects.filter(is_active=True).count()
+        attendance_today = Attendance.objects.filter(check_in_time__date=today).count()
+        checked_in_now = Attendance.objects.filter(status=Attendance.Status.CHECKED_IN).count()
+        late_arrivals = Attendance.objects.filter(
+            check_in_time__date=today,
+            arrival_status=Attendance.ArrivalStatus.LATE,
+        ).count()
+        not_checked_in = User.objects.filter(is_active=True).exclude(
+            attendance_records__check_in_time__date=today
+        ).count()
 
     context = {
         "announcements": Announcement.objects.all()[:5],
         "my_tasks": visible_tasks[:5],
         "my_attendance": user_records,
         "events": Event.objects.filter(end_date__gte=timezone.now()).order_by("start_date")[:5],
-        "total_staff": User.objects.filter(is_active=True).count(),
-        "attendance_today": Attendance.objects.filter(check_in_time__date=today).count(),
-        "checked_in_now": Attendance.objects.filter(status=Attendance.Status.CHECKED_IN).count(),
-        "late_arrivals": Attendance.objects.filter(
-            check_in_time__date=today,
-            arrival_status=Attendance.ArrivalStatus.LATE,
-        ).count(),
-        "not_checked_in": User.objects.filter(is_active=True).exclude(
-            attendance_records__check_in_time__date=today
-        ).count(),
+        "total_staff": total_staff,
+        "attendance_today": attendance_today,
+        "checked_in_now": checked_in_now,
+        "late_arrivals": late_arrivals,
+        "not_checked_in": not_checked_in,
         "total_event_registrations": total_event_registrations,
         "task_status": list(visible_tasks.values("status").annotate(count=Count("id"))),
         "task_status_total": max(visible_tasks.values("status").annotate(count=Count("id")).aggregate(t=Count("id"))["t"] or 1, 1),
@@ -93,6 +122,30 @@ def live_stats(request):
         Event.objects
         .aggregate(total=db_Sum("form_response_count"))["total"] or 0
     )
+
+    # Dept Head sees only their department's stats
+    is_dept_head_only = (
+        request.user.is_authenticated
+        and request.user.role == "department_head"
+        and not request.user.is_portal_admin()
+    )
+    if is_dept_head_only and request.user.department_id:
+        dept_id = request.user.department_id
+        df = {"user__department_id": dept_id}
+        return JsonResponse({
+            "checked_in_now": Attendance.objects.filter(status=Attendance.Status.CHECKED_IN, **df).count(),
+            "attendance_today": Attendance.objects.filter(check_in_time__date=today, **df).count(),
+            "not_checked_in": User.objects.filter(is_active=True, department_id=dept_id).exclude(
+                attendance_records__check_in_time__date=today
+            ).count(),
+            "late_arrivals": Attendance.objects.filter(
+                check_in_time__date=today,
+                arrival_status=Attendance.ArrivalStatus.LATE,
+                **df
+            ).count(),
+            "total_event_registrations": total_event_registrations,
+        })
+
     return JsonResponse({
         "checked_in_now": Attendance.objects.filter(status=Attendance.Status.CHECKED_IN).count(),
         "attendance_today": Attendance.objects.filter(check_in_time__date=today).count(),

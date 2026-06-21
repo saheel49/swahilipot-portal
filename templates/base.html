@@ -111,7 +111,7 @@
     <a href="{% url 'dashboard:home' %}"><i class="bi bi-speedometer2"></i> Dashboard</a>
     <a href="{% url 'attendance:home' %}"><i class="bi bi-geo-alt"></i> Attendance</a>
     <a href="{% url 'attendance:my_location_timeout' %}"><i class="bi bi-clock-history"></i> Location Timeout</a>
-    {% if user.can_monitor_attendance %}
+    {% if user.can_monitor_all_attendance %}
     <a href="{% url 'attendance:missed_checkout' %}"><i class="bi bi-door-open"></i> Missed Checkout</a>
     <a href="{% url 'attendance:location_activity' %}"
        style="padding-left:2.2rem;font-size:.85rem;opacity:.9"
@@ -125,9 +125,11 @@
 
     {% if user.is_portal_admin %}
     <a href="{% url 'attendance:sites' %}"><i class="bi bi-pin-map"></i> Project Sites</a>
-    {% if user.is_manager %}
+    {% endif %}
+    {% if user.can_view_geofence_violations %}
     <a href="{% url 'attendance:geofence_violations' %}"><i class="bi bi-exclamation-triangle"></i> Violations</a>
     {% endif %}
+    {% if user.is_portal_admin %}
     <a href="{% url 'accounts:user_directory' %}"><i class="bi bi-people"></i> User Directory</a>
     <a href="{% url 'accounts:departments' %}"><i class="bi bi-building"></i> Departments</a>
     {% endif %}
@@ -312,7 +314,7 @@
 })();
 </script>
 
-{% if user.can_monitor_attendance %}
+{% if user.can_view_location_activity %}
 <script>
 // ── Location Activity sidebar badge — shows who has location off ──────────
 (function () {

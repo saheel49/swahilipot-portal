@@ -451,11 +451,19 @@ def admin_attendance(request):
 def attendance_today(request):
     """Filtered view: all check-ins today."""
     today = timezone.localdate()
-    records = Attendance.objects.filter(
+    qs = Attendance.objects.filter(
         check_in_time__date=today,
     ).select_related("user", "project_site").order_by("-check_in_time")
+
+    # Dept Head: restrict to their own department members only
+    if request.user.role == "department_head" and not request.user.is_portal_admin():
+        if request.user.department_id:
+            qs = qs.filter(user__department_id=request.user.department_id)
+        else:
+            qs = qs.none()
+
     return render(request, "attendance/filtered_list.html", {
-        "records": records,
+        "records": qs,
         "filter_title": "Attendance Today",
         "filter_description": f"All staff who checked in on {today.strftime('%d %b %Y')}.",
     })
@@ -464,11 +472,19 @@ def attendance_today(request):
 @role_required("admin", "program_manager", "department_head")
 def attendance_currently_in(request):
     """Filtered view: staff currently checked in."""
-    records = Attendance.objects.filter(
+    qs = Attendance.objects.filter(
         status=Attendance.Status.CHECKED_IN,
     ).select_related("user", "project_site").order_by("-check_in_time")
+
+    # Dept Head: restrict to their own department only
+    if request.user.role == "department_head" and not request.user.is_portal_admin():
+        if request.user.department_id:
+            qs = qs.filter(user__department_id=request.user.department_id)
+        else:
+            qs = qs.none()
+
     return render(request, "attendance/filtered_list.html", {
-        "records": records,
+        "records": qs,
         "filter_title": "Currently In",
         "filter_description": "Staff who are currently checked in at the site.",
     })
@@ -479,7 +495,6 @@ def attendance_currently_out(request):
     """Filtered view: active users who have NOT checked in today."""
     from accounts.models import User as PortalUser
     today = timezone.localdate()
-    # Users with a check-in today
     checked_in_today_pks = Attendance.objects.filter(
         check_in_time__date=today
     ).values_list("user_id", flat=True)
@@ -488,6 +503,13 @@ def attendance_currently_out(request):
     ).exclude(
         pk__in=checked_in_today_pks
     ).select_related("department").order_by("first_name", "username")
+
+    # Dept Head: restrict to their own department only
+    if request.user.role == "department_head" and not request.user.is_portal_admin():
+        if request.user.department_id:
+            users_out = users_out.filter(department_id=request.user.department_id)
+        else:
+            users_out = users_out.none()
 
     return render(request, "attendance/currently_out.html", {
         "users_out": users_out,
@@ -501,12 +523,20 @@ def attendance_currently_out(request):
 def attendance_late_arrivals(request):
     """Filtered view: late arrivals today."""
     today = timezone.localdate()
-    records = Attendance.objects.filter(
+    qs = Attendance.objects.filter(
         check_in_time__date=today,
         arrival_status=Attendance.ArrivalStatus.LATE,
     ).select_related("user", "project_site").order_by("-check_in_time")
+
+    # Dept Head: restrict to their own department only
+    if request.user.role == "department_head" and not request.user.is_portal_admin():
+        if request.user.department_id:
+            qs = qs.filter(user__department_id=request.user.department_id)
+        else:
+            qs = qs.none()
+
     return render(request, "attendance/filtered_list.html", {
-        "records": records,
+        "records": qs,
         "filter_title": "Late Arrivals Today",
         "filter_description": f"Staff who arrived late on {today.strftime('%d %b %Y')}.",
     })
@@ -928,9 +958,9 @@ def geofence_violations_report(request, fmt):
     return pdf_response(fname, title, headers, rows)
 
 
-@role_required("admin", "program_manager", "department_head")
+@role_required("admin", "program_manager")
 def user_location_log(request, user_pk):
-    """Per-user location on/off history."""
+    """Per-user location on/off history — Admin and PM only."""
     from accounts.models import User as PortalUser
     from .models import LocationLog
     target = get_object_or_404(PortalUser, pk=user_pk)
@@ -941,11 +971,11 @@ def user_location_log(request, user_pk):
     })
 
 
-@role_required("admin", "program_manager", "department_head")
+@role_required("admin", "program_manager")
 def all_location_activity(request):
     """
     Manager view — all users' recent location on/off events, newest first.
-    Shows who turned off location, when, and for how long.
+    Admin and PM only — Dept Head cannot view org-wide location activity.
     """
     from .models import LocationLog
     logs = (
@@ -953,7 +983,6 @@ def all_location_activity(request):
         .select_related("user")
         .order_by("-turned_off_at")[:200]
     )
-    # Count unresolved (location still off) for the summary badge
     unresolved_count = LocationLog.objects.filter(turned_on_at__isnull=True).count()
     return render(request, "attendance/all_location_activity.html", {
         "logs": logs,
@@ -966,10 +995,10 @@ def location_off_status_api(request):
     """
     Lightweight JSON endpoint — returns list of users with location currently off.
     Called by base.html every 30 s to update the sidebar badge.
-    Restricted to managers; regular users get an empty list.
+    Restricted to Admin and PM only; Dept Head and below get empty list.
     """
     from .models import LocationLog
-    if not (request.user.can_monitor_attendance() if callable(request.user.can_monitor_attendance) else request.user.can_monitor_attendance):
+    if not request.user.can_view_location_activity():
         return JsonResponse({"count": 0, "users": []})
     logs = (
         LocationLog.objects
