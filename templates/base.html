@@ -51,9 +51,9 @@
       flex-shrink:0;
     }
 
-    /* ── Mobile hamburger button ── */
+    /* ── Mobile hamburger button — hidden on desktop, shown on mobile ── */
     .sidebar-toggle{
-      display:none;
+      display:none !important;  /* hidden by default on all screen sizes */
       background:none;border:1.5px solid var(--topbar-border);
       border-radius:8px;padding:6px 10px;cursor:pointer;
       color:var(--ink);font-size:1.2rem;line-height:1;
@@ -162,7 +162,7 @@
       <button class="sidebar-toggle" id="sidebarToggle" aria-label="Open navigation menu" aria-expanded="false">
         <i class="bi bi-list"></i>
       </button>
-      <span class="fw-semibold" style="margin-left:8px">{{ user.get_full_name|default:user.username }}</span>
+      <span class="fw-semibold">{{ user.get_full_name|default:user.username }}</span>
       <div class="ms-auto d-flex gap-3 align-items-center">
         <!-- Dark/Light mode toggle -->
         <button id="themeToggleBtn"

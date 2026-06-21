@@ -81,7 +81,7 @@ body{background:var(--bg);color:var(--ink)}
     cursor:pointer;
   }
 
-  /* ── Hamburger button visible on mobile ── */
+  /* ── Hamburger button visible on mobile only ── */
   .sidebar-toggle{
     display:flex !important;
   }
