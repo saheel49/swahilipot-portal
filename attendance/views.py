@@ -393,6 +393,12 @@ def check_in(request):
         link="/attendance/",
     )
     log_activity(request, "check_in", f"Site: {site.name}, status: {arr_label}")
+
+    # Audit log
+    from core.audit import audit
+    audit(request, "check_in", f"{request.user} checked in at {site.name} ({arr_label}).",
+          category="attendance", obj=record)
+
     messages.success(request, f"Checked in successfully ({arr_label}).")
     return redirect("attendance:home")
 
@@ -449,6 +455,12 @@ def check_out(request):
     open_logs = LocationLog.objects.filter(user=request.user, turned_on_at__isnull=True)
     for open_log in open_logs:
         open_log.close()
+
+    # Audit log
+    from core.audit import audit
+    audit(request, "check_out",
+          f"{request.user} checked out from {record.project_site.name} ({dep_label}). Hours: {record.total_hours}h.",
+          category="attendance", obj=record)
 
     messages.success(request, f"Checked out. Hours recorded: {record.total_hours}h ({dep_label}).")
     return redirect("attendance:home")
@@ -1039,6 +1051,10 @@ def acknowledge_violation(request, pk):
         violation.resolution = GeofenceViolation.Resolution.ACKNOWLEDGED
         violation.notes = request.POST.get("notes", "")
         violation.save(update_fields=["resolution", "notes"])
+        from core.audit import audit
+        audit(request, "violation_acknowledged",
+              f'{request.user} acknowledged geofence violation #{pk} for {violation.user}.',
+              category="attendance", obj=violation, severity="warning")
         messages.success(request, f"Violation #{pk} acknowledged.")
     return redirect("attendance:geofence_violations")
 
@@ -1069,6 +1085,10 @@ def admin_resolve_location_log(request, user_pk, log_pk):
             messages.info(request, f"Location log #{log_pk} was already resolved.")
         else:
             log.close()
+            from core.audit import audit
+            audit(request, "location_log_resolved",
+                  f'{request.user} manually resolved location log #{log_pk} for {target}. Duration: {log.duration_display}.',
+                  category="attendance", obj=log, severity="info")
             messages.success(
                 request,
                 f"Location log #{log_pk} resolved — duration was {log.duration_display}."

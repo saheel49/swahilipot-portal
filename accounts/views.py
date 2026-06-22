@@ -13,6 +13,10 @@ def profile(request):
         form = ProfileForm(request.POST, request.FILES, instance=request.user)
         if form.is_valid():
             form.save()
+            from core.audit import audit
+            audit(request, "profile_updated",
+                  f"{request.user} updated their own profile.",
+                  category="users", obj=request.user)
             messages.success(request, "Profile updated.")
             return redirect("accounts:profile")
     else:
@@ -76,6 +80,10 @@ def user_edit(request, pk):
     form = UserEditForm(request.POST or None, instance=target)
     if request.method == "POST" and form.is_valid():
         form.save()
+        from core.audit import audit
+        audit(request, "user_updated",
+              f'{request.user} updated user account: {target} (role: {target.role}, dept: {target.department}).',
+              category="users", obj=target, severity="warning")
         messages.success(request, f"{target} updated successfully.")
         return redirect("accounts:user_directory")
     return render(request, "accounts/user_edit.html", {"form": form, "target": target})
@@ -92,6 +100,10 @@ def user_toggle_active(request, pk):
             target.is_active = not target.is_active
             target.save()
             state = "activated" if target.is_active else "deactivated"
+            from core.audit import audit
+            audit(request, f"user_{state}",
+                  f'{request.user} {state} user account: {target}.',
+                  category="users", obj=target, severity="warning")
             messages.success(request, f"{target} has been {state}.")
     return redirect("accounts:user_directory")
 
@@ -113,6 +125,10 @@ def user_reset_password(request, pk):
             priority="high",
             link="/accounts/profile/",
         )
+        from core.audit import audit
+        audit(request, "password_reset",
+              f'{request.user} reset password for {target}.',
+              category="users", obj=target, severity="warning")
         messages.success(request, f"Password for {target} has been reset.")
         return redirect("accounts:user_directory")
     return render(request, "accounts/reset_password.html", {
@@ -222,6 +238,10 @@ def user_add(request):
             link="/accounts/profile/",
         )
         messages.success(request, f"User '{user.username}' created successfully.")
+        from core.audit import audit as _audit
+        _audit(request, "user_created",
+               f'{request.user} created new user: {user.username} (role: {user.role}).',
+               category="users", obj=user, severity="warning")
         return redirect("accounts:user_directory")
     return render(request, "accounts/add_user.html", {"form": form, "title": "Add New User"})
 

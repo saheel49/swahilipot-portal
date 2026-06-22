@@ -36,6 +36,7 @@ urlpatterns = [
     path("tasks/", include("tasks.urls")),
     path("events/", include("events.urls")),
     path("suggestions/", include("suggestions.urls")),
+    path("system/", include("core.urls")),
 ]
 
 if settings.DEBUG:

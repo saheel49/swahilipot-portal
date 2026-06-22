@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1><i class="bi bi-shield-lock-fill me-2"></i>Audit Log</h1>
+    <p class="text-muted mb-0 small">
+      Complete system activity trail —
+      <strong>{{ total_count }}</strong> record{{ total_count|pluralize }} found
+      {% if total_count > 500 %}<span class="badge bg-warning text-dark ms-1">showing first 500</span>{% endif %}
+    </p>
+  </div>
+  <a href="{% url 'core:audit_log_export' %}?category={{ f_category }}&severity={{ f_severity }}&user={{ f_user }}&action={{ f_action }}&date_from={{ f_date_from }}&date_to={{ f_date_to }}"
+     class="btn btn-sm btn-outline-success">
+    <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export Excel
+  </a>
+</div>
+
+<!-- ── Filters ── -->
+<div class="panel mb-4">
+  <form method="get" class="audit-filter-form">
+    <div class="row g-2 align-items-end">
+      <div class="col-sm-6 col-md-3">
+        <label class="form-label small fw-semibold">Category</label>
+        <select name="category" class="form-select form-select-sm">
+          <option value="">All Categories</option>
+          {% for val, label in categories %}
+          <option value="{{ val }}" {% if f_category == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-6 col-md-2">
+        <label class="form-label small fw-semibold">Severity</label>
+        <select name="severity" class="form-select form-select-sm">
+          <option value="">All</option>
+          {% for val, label in severities %}
+          <option value="{{ val }}" {% if f_severity == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-6 col-md-2">
+        <label class="form-label small fw-semibold">User</label>
+        <input type="text" name="user" class="form-control form-control-sm"
+               placeholder="Name or username" value="{{ f_user }}">
+      </div>
+      <div class="col-sm-6 col-md-2">
+        <label class="form-label small fw-semibold">Action / Keyword</label>
+        <input type="text" name="action" class="form-control form-control-sm"
+               placeholder="e.g. check_in, task" value="{{ f_action }}">
+      </div>
+      <div class="col-sm-6 col-md-1">
+        <label class="form-label small fw-semibold">From</label>
+        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ f_date_from }}">
+      </div>
+      <div class="col-sm-6 col-md-1">
+        <label class="form-label small fw-semibold">To</label>
+        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ f_date_to }}">
+      </div>
+      <div class="col-auto d-flex gap-2">
+        <button type="submit" class="btn btn-sm btn-primary">
+          <i class="bi bi-search me-1"></i>Filter
+        </button>
+        <a href="{% url 'core:audit_log' %}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-x-circle me-1"></i>Clear
+        </a>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- ── Log Table ── -->
+<div class="panel p-0">
+  {% if logs %}
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0 audit-table">
+      <thead>
+        <tr>
+          <th style="width:140px">Timestamp</th>
+          <th style="width:140px">User</th>
+          <th style="width:110px">Category</th>
+          <th style="width:80px">Severity</th>
+          <th style="width:150px">Action</th>
+          <th>Description</th>
+          <th style="width:100px">Object</th>
+          <th style="width:60px">Method</th>
+          <th>Path</th>
+          <th style="width:110px">IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr class="audit-row sev-{{ log.severity }}">
+          <td class="text-muted" style="font-size:.76rem;white-space:nowrap">
+            {{ log.timestamp|date:"d M Y" }}<br>
+            <span style="color:var(--ink);font-weight:600">{{ log.timestamp|date:"H:i:s" }}</span>
+          </td>
+          <td>
+            {% if log.username_snapshot %}
+            <span class="audit-user">{{ log.username_snapshot }}</span>
+            {% else %}
+            <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="audit-cat cat-{{ log.category }}">{{ log.get_category_display }}</span>
+          </td>
+          <td>
+            <span class="audit-sev sev-badge-{{ log.severity }}">{{ log.get_severity_display }}</span>
+          </td>
+          <td>
+            <code class="audit-action">{{ log.action }}</code>
+          </td>
+          <td style="font-size:.82rem;max-width:280px">
+            <span class="audit-desc" title="{{ log.description }}">
+              {{ log.description|truncatechars:120 }}
+            </span>
+          </td>
+          <td style="font-size:.75rem">
+            {% if log.object_type %}
+            <span class="text-muted">{{ log.object_type }}</span>
+            {% if log.object_id %}<br><strong>#{{ log.object_id }}</strong>{% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            <span class="method-badge method-{{ log.method|lower }}">{{ log.method }}</span>
+          </td>
+          <td style="font-size:.72rem;word-break:break-all;max-width:180px;color:var(--muted)">
+            {{ log.path|truncatechars:60 }}
+          </td>
+          <td style="font-size:.74rem;color:var(--muted);white-space:nowrap">{{ log.ip_address|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if total_count > 500 %}
+  <div class="px-4 py-3 text-muted small border-top">
+    <i class="bi bi-info-circle me-1"></i>
+    Showing first 500 of {{ total_count }} records. Use <strong>Export Excel</strong> to download the full dataset,
+    or apply filters to narrow results.
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="text-center py-5">
+    <i class="bi bi-shield-check fs-1 text-muted d-block mb-3"></i>
+    <p class="text-muted">No audit log entries match your filters.</p>
+  </div>
+  {% endif %}
+</div>
+
+<style>
+/* ── Audit log table ── */
+.audit-table{font-size:.83rem}
+.audit-table thead th{
+  background:var(--surface2);color:var(--ink);font-size:.72rem;
+  font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+  border-bottom:2px solid var(--border);white-space:nowrap;padding:10px 12px;
+}
+.audit-table tbody td{padding:8px 12px;vertical-align:middle;border-bottom:1px solid var(--border)}
+.audit-table tbody tr:last-child td{border-bottom:none}
+
+/* Row severity tinting */
+.audit-row.sev-warning td{background:rgba(245,158,11,.05)}
+.audit-row.sev-critical td{background:rgba(239,68,68,.07)}
+html[data-theme="dark"] .audit-row.sev-warning td{background:rgba(245,158,11,.08)}
+html[data-theme="dark"] .audit-row.sev-critical td{background:rgba(239,68,68,.1)}
+
+/* User */
+.audit-user{font-weight:600;color:var(--ink);font-size:.82rem}
+
+/* Category badges */
+.audit-cat{font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+.cat-auth{background:#dbeafe;color:#1d4ed8}
+.cat-attendance{background:#dcfce7;color:#166534}
+.cat-tasks{background:#ede9fe;color:#5b21b6}
+.cat-users{background:#fef3c7;color:#92400e}
+.cat-departments{background:#e0f2fe;color:#0369a1}
+.cat-events{background:#fce7f3;color:#9d174d}
+.cat-communication{background:#ecfdf5;color:#065f46}
+.cat-suggestions{background:#fff7ed;color:#c2410c}
+.cat-reports{background:#f0fdf4;color:#14532d}
+.cat-system{background:#f1f5f9;color:#475569}
+.cat-other{background:#f3f4f6;color:#6b7280}
+
+/* Dark mode category badges */
+html[data-theme="dark"] .cat-auth{background:rgba(59,130,246,.2);color:#93c5fd}
+html[data-theme="dark"] .cat-attendance{background:rgba(34,197,94,.2);color:#86efac}
+html[data-theme="dark"] .cat-tasks{background:rgba(139,92,246,.2);color:#c4b5fd}
+html[data-theme="dark"] .cat-users{background:rgba(245,158,11,.2);color:#fcd34d}
+html[data-theme="dark"] .cat-departments{background:rgba(14,165,233,.2);color:#7dd3fc}
+html[data-theme="dark"] .cat-events{background:rgba(236,72,153,.2);color:#f9a8d4}
+html[data-theme="dark"] .cat-communication{background:rgba(16,185,129,.2);color:#6ee7b7}
+html[data-theme="dark"] .cat-suggestions{background:rgba(249,115,22,.2);color:#fdba74}
+html[data-theme="dark"] .cat-reports{background:rgba(34,197,94,.15);color:#86efac}
+html[data-theme="dark"] .cat-system{background:rgba(100,116,139,.2);color:#cbd5e1}
+html[data-theme="dark"] .cat-other{background:rgba(107,114,128,.2);color:#9ca3af}
+
+/* Severity badges */
+.audit-sev{font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.4px}
+.sev-badge-info{background:#dbeafe;color:#1d4ed8}
+.sev-badge-warning{background:#fef3c7;color:#92400e}
+.sev-badge-critical{background:#fee2e2;color:#991b1b}
+html[data-theme="dark"] .sev-badge-info{background:rgba(59,130,246,.2);color:#93c5fd}
+html[data-theme="dark"] .sev-badge-warning{background:rgba(245,158,11,.2);color:#fcd34d}
+html[data-theme="dark"] .sev-badge-critical{background:rgba(239,68,68,.2);color:#fca5a5}
+
+/* Action code */
+.audit-action{
+  font-size:.75rem;background:var(--surface2);color:var(--ink);
+  padding:2px 6px;border-radius:4px;font-family:monospace;
+  white-space:nowrap;display:inline-block;
+}
+
+/* HTTP method badges */
+.method-badge{font-size:.65rem;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase;font-family:monospace}
+.method-get{background:#dcfce7;color:#166534}
+.method-post{background:#dbeafe;color:#1d4ed8}
+.method-put,.method-patch{background:#fef3c7;color:#92400e}
+.method-delete{background:#fee2e2;color:#991b1b}
+html[data-theme="dark"] .method-get{background:rgba(34,197,94,.2);color:#86efac}
+html[data-theme="dark"] .method-post{background:rgba(59,130,246,.2);color:#93c5fd}
+html[data-theme="dark"] .method-put,html[data-theme="dark"] .method-patch{background:rgba(245,158,11,.2);color:#fcd34d}
+html[data-theme="dark"] .method-delete{background:rgba(239,68,68,.2);color:#fca5a5}
+
+/* Filter form */
+.audit-filter-form .form-label{margin-bottom:3px;color:var(--ink)}
+</style>
+{% endblock %}

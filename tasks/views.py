@@ -55,10 +55,13 @@ def task_create(request):
             priority="low",
             link=f"/tasks/{task.pk}/",
         )
+        from core.audit import audit
+        audit(request, "task_created",
+              f'{request.user} created task "{task.title}" → {task.assigned_to}. Priority: {task.get_priority_display()}. Due: {task.due_date}.',
+              category="tasks", obj=task)
         messages.success(request, "Task created.")
         return redirect("tasks:list")
     return render(request, "form.html", {"form": form, "title": "Create Task"})
-
 
 @login_required
 def task_detail(request, pk):
@@ -101,6 +104,10 @@ def task_update(request, pk):
                     priority="low",
                     link=f"/tasks/{task.pk}/",
                 )
+            from core.audit import audit
+            audit(request, "task_status_updated",
+                  f'{request.user} changed "{task.title}" status: {old_status} → {task.get_status_display()}.',
+                  category="tasks", obj=task)
             messages.success(request, "Task status updated.")
 
     elif "comment" in request.POST:

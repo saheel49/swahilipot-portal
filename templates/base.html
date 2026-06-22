@@ -178,6 +178,11 @@
     <a href="{% url 'dashboard:reports' %}"><i class="bi bi-file-earmark-bar-graph"></i> Reports</a>
     {% endif %}
 
+    {# ── Audit Log: Admin only ── #}
+    {% if user.is_portal_admin %}
+    <a href="{% url 'core:audit_log' %}"><i class="bi bi-shield-lock"></i> Audit Log</a>
+    {% endif %}
+
     <!-- Bottom padding so last link clears the scrollbar thumb -->
     <div style="height:24px"></div>
 

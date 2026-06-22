@@ -50,29 +50,67 @@ def announcement_create(request):
             exclude_pk=request.user.pk,
             link="/communication/",
         )
+        from core.audit import audit
+        audit(request, "announcement_created",
+              f'{request.user} published announcement: "{announcement.title}".',
+              category="communication", obj=announcement)
         messages.success(request, "Announcement published.")
         return redirect("communication:home")
     return render(request, "form.html", {"form": form, "title": "New Announcement"})
 
 
-@role_required("admin")
+@login_required
 def channel_create(request):
-    """Admin creates a new department channel."""
-    form = ChannelForm(
-        request.POST or None,
-        dept_queryset=Department.objects.all().order_by("name"),
-    )
+    """
+    Admin: can create a channel for any department.
+    Department Head: can only create channels for their own department.
+    """
+    user = request.user
+    if not (user.is_portal_admin() or user.role == "department_head"):
+        messages.error(request, "You do not have permission to create channels.")
+        return redirect("communication:home")
+
+    if user.is_portal_admin():
+        dept_qs = Department.objects.all().order_by("name")
+    else:
+        # Dept head: restrict to their own department only
+        if not user.department_id:
+            messages.error(request, "You are not assigned to a department yet.")
+            return redirect("communication:home")
+        dept_qs = Department.objects.filter(pk=user.department_id)
+
+    form = ChannelForm(request.POST or None, dept_queryset=dept_qs)
     if request.method == "POST" and form.is_valid():
-        form.save()
-        messages.success(request, "Channel created.")
+        channel_obj = form.save(commit=False)
+        # Dept head can only create channels for their own dept — enforce server-side
+        if not user.is_portal_admin():
+            channel_obj.department_id = user.department_id
+        channel_obj.save()
+
+        # Log the action
+        from attendance.models import ActivityLog
+        ActivityLog.objects.create(
+            user=user,
+            action="channel_created",
+            description=f"Created channel #{channel_obj.name} in {channel_obj.department}.",
+        )
+
+        messages.success(request, f"Channel #{channel_obj.name} created.")
         return redirect("communication:home")
     return render(request, "form.html", {"form": form, "title": "Create Department Channel"})
 
 
-@role_required("admin")
+@login_required
 def channel_delete(request, pk):
-    """Admin deletes a department channel."""
+    """Admin deletes any channel. Dept head deletes only their own dept's channels."""
+    user = request.user
     ch = get_object_or_404(DepartmentChannel, pk=pk)
+
+    if not user.is_portal_admin():
+        if user.role != "department_head" or user.department_id != ch.department_id:
+            messages.error(request, "You do not have permission to delete this channel.")
+            return redirect("communication:home")
+
     if request.method == "POST":
         name = ch.name
         ch.delete()
