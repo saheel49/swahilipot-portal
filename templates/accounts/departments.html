@@ -28,9 +28,11 @@
     </div>
     <div class="dept-actions">
       <span class="dept-count-badge">{{ dept.users.count }} member{{ dept.users.count|pluralize }}</span>
+      {% if request.user.is_portal_admin %}
       <a href="{% url 'accounts:department_edit' dept.pk %}" class="btn btn-xs btn-outline-secondary">
         <i class="bi bi-pencil me-1"></i>Edit
       </a>
+      {% endif %}
     </div>
   </div>
 
@@ -58,6 +60,7 @@
            class="chip-loc-btn" title="Location history for {{ u.get_full_name|default:u.username }}">
           <i class="bi bi-geo-alt-fill"></i>
         </a>
+        {% if request.user.is_portal_admin %}
         <form method="post" action="{% url 'accounts:department_remove_user' dept.pk u.pk %}" style="display:inline">
           {% csrf_token %}
           <button type="submit" class="chip-remove" title="Remove from department"
@@ -65,13 +68,15 @@
             <i class="bi bi-x"></i>
           </button>
         </form>
+        {% endif %}
       </div>
       {% endfor %}
     </div>
   </div>
   {% endif %}
 
-  <!-- Assign users form -->
+  <!-- Assign users form — Admin only -->
+  {% if request.user.is_portal_admin %}
   <div class="dept-assign-section">
     <div class="dept-section-label">Assign Users</div>
     <form method="post" action="{% url 'accounts:department_assign' dept.pk %}" class="dept-assign-form">
@@ -100,6 +105,7 @@
       {% endif %}
     </form>
   </div>
+  {% endif %}
 
   <!-- ── TASK ASSIGNMENT SECTION ────────────────────────────────── -->
   {% if request.user.can_manage_tasks %}

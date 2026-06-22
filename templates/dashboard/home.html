@@ -30,17 +30,24 @@
 <!-- ── ADMIN / MANAGER METRICS ─────────────────────────────────────────── -->
 {% if user.can_monitor_attendance %}
 <div class="metric-grid">
-  {% if user.is_portal_admin %}
+  {# Total Staff card — clickable for Admin (full dir) and PM (read-only dir), info-only for Dept Head #}
+  {% if user.is_portal_admin or user.can_view_users %}
   <a href="{% url 'accounts:user_directory' %}" class="metric-card metric-blue" style="text-decoration:none">
-  {% else %}
-  <div class="metric-card metric-blue">
-  {% endif %}
     <div class="metric-icon"><i class="bi bi-people-fill"></i></div>
     <div class="metric-body">
       <div class="metric-value">{{ total_staff }}</div>
-      <div class="metric-label">{% if user.is_portal_admin or user.can_monitor_all_attendance %}Total Staff{% else %}Dept Staff{% endif %}</div>
+      <div class="metric-label">{% if user.can_monitor_all_attendance %}Total Staff{% else %}Dept Staff{% endif %}</div>
     </div>
-  {% if user.is_portal_admin %}</a>{% else %}</div>{% endif %}
+  </a>
+  {% else %}
+  <div class="metric-card metric-blue">
+    <div class="metric-icon"><i class="bi bi-people-fill"></i></div>
+    <div class="metric-body">
+      <div class="metric-value">{{ total_staff }}</div>
+      <div class="metric-label">Dept Staff</div>
+    </div>
+  </div>
+  {% endif %}
   <a href="{% url 'attendance:today' %}" class="metric-card metric-green" style="text-decoration:none">
     <div class="metric-icon"><i class="bi bi-geo-alt-fill"></i></div>
     <div class="metric-body">

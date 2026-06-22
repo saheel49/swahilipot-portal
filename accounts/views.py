@@ -133,12 +133,24 @@ class DepartmentForm(django_forms.ModelForm):
         fields = ("name", "description")
 
 
-@role_required("admin")
+@login_required
 def department_list(request):
-    departments = Department.objects.prefetch_related("users").all()
-    all_unassigned = User.objects.filter(is_active=True, department__isnull=True).order_by("first_name", "username")
+    """
+    Admin: sees all departments, can edit/assign/remove.
+    Department Head: sees only their own department with full management capability.
+    """
+    if request.user.is_portal_admin():
+        departments = Department.objects.prefetch_related("users").all()
+        all_unassigned = User.objects.filter(is_active=True, department__isnull=True).order_by("first_name", "username")
+    elif request.user.role == "department_head" and request.user.department_id:
+        departments = Department.objects.prefetch_related("users").filter(pk=request.user.department_id)
+        all_unassigned = User.objects.none()  # Dept head cannot add users from outside
+    else:
+        messages.error(request, "You do not have permission to access that page.")
+        return redirect("dashboard:home")
+
     return render(request, "accounts/departments.html", {
-        "departments":   departments,
+        "departments":    departments,
         "all_unassigned": all_unassigned,
     })
 
@@ -216,20 +228,26 @@ def user_add(request):
 
 # ── Department Task Assignment ────────────────────────────────────────────
 
-@role_required("admin")
+@login_required
 def department_assign_task(request, dept_pk):
     """
-    Assign a task to the whole department or specific members from within
-    the departments page.
+    Assign a task to the whole department or specific members.
+    Admin: any department.
+    Department Head: their own department only.
     """
     from tasks.models import Task
     dept = get_object_or_404(Department, pk=dept_pk)
 
-    if request.method != "POST":
-        return redirect("accounts:departments")
+    # Permission check: admin can assign to any dept, dept head only to their own
+    if not request.user.is_portal_admin():
+        if not request.user.can_manage_tasks():
+            messages.error(request, "You do not have permission to assign tasks.")
+            return redirect("accounts:departments")
+        if request.user.role == "department_head" and request.user.department_id != dept.pk:
+            messages.error(request, "You can only assign tasks to your own department.")
+            return redirect("dashboard:home")
 
-    if not request.user.can_manage_tasks():
-        messages.error(request, "You do not have permission to assign tasks.")
+    if request.method != "POST":
         return redirect("accounts:departments")
 
     title       = request.POST.get("title", "").strip()

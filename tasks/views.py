@@ -18,6 +18,19 @@ def task_list(request):
 @capability_required("can_manage_tasks")
 def task_create(request):
     form = TaskForm(request.POST or None)
+
+    # Dept Head: restrict assigned_to to own department members only
+    if (
+        request.user.role == request.user.Role.DEPARTMENT_HEAD
+        and not request.user.is_portal_admin()
+        and request.user.department_id
+    ):
+        from accounts.models import User as _User
+        form.fields["assigned_to"].queryset = _User.objects.filter(
+            is_active=True, department_id=request.user.department_id
+        ).order_by("first_name", "username")
+        form.fields["assigned_to"].help_text = "You can only assign tasks to members of your department."
+
     if request.method == "POST" and form.is_valid():
         task = form.save(commit=False)
         task.assigned_by = request.user

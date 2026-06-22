@@ -144,9 +144,11 @@
     <a href="{% url 'accounts:user_directory' %}"><i class="bi bi-people"></i> User Directory</a>
     {% endif %}
 
-    {# ── Departments: Admin only ── #}
+    {# ── Departments: Admin (all) and Dept Head (own dept only) ── #}
     {% if user.can_manage_departments %}
     <a href="{% url 'accounts:departments' %}"><i class="bi bi-building"></i> Departments</a>
+    {% elif user.role == "department_head" and user.department %}
+    <a href="{% url 'accounts:departments' %}"><i class="bi bi-building"></i> My Department</a>
     {% endif %}
 
     {# ── Tasks ── #}

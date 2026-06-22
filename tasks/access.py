@@ -16,7 +16,8 @@ def visible_tasks_for(user):
         return qs
 
     if user.role == user.Role.PROGRAM_MANAGER:
-        return qs.filter(Q(assigned_by=user) | Q(assigned_to=user))
+        # PM sees all tasks in the org (they oversee everything)
+        return qs
 
     if user.role == user.Role.DEPARTMENT_HEAD and user.department_id:
         return qs.filter(
@@ -37,11 +38,15 @@ def user_can_access_task(user, task):
     if user.is_portal_admin():
         return True
 
+    # Program Manager can access all tasks
+    if user.role == user.Role.PROGRAM_MANAGER:
+        return True
+
     # Directly involved (assigned to or created by)
     if task.assigned_to_id == user.pk or task.assigned_by_id == user.pk:
         return True
 
-    # Department Head can see department tasks
+    # Department Head can see all department tasks
     if user.role == user.Role.DEPARTMENT_HEAD and user.department_id:
         return task.assigned_to.department_id == user.department_id
 
