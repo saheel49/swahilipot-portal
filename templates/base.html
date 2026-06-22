@@ -147,8 +147,15 @@
     {# ── Departments: Admin (all) and Dept Head (own dept only) ── #}
     {% if user.can_manage_departments %}
     <a href="{% url 'accounts:departments' %}"><i class="bi bi-building"></i> Departments</a>
+    <a href="{% url 'accounts:programs' %}"><i class="bi bi-diagram-3"></i> Programs</a>
+    <a href="{% url 'accounts:custom_roles' %}"><i class="bi bi-shield-plus"></i> Custom Roles</a>
     {% elif user.role == "department_head" and user.department %}
     <a href="{% url 'accounts:departments' %}"><i class="bi bi-building"></i> My Department</a>
+    {% endif %}
+
+    {# ── PM Dashboard: Program Manager ── #}
+    {% if user.role == "program_manager" %}
+    <a href="{% url 'accounts:pm_dashboard' %}"><i class="bi bi-star-fill"></i> PM Dashboard</a>
     {% endif %}
 
     {# ── Tasks ── #}

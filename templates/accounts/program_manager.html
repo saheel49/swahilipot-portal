@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- ── PM Banner ── -->
+<div class="pm-banner">
+  <div class="pm-banner-left">
+    <div class="pm-icon"><i class="bi bi-star-fill"></i></div>
+    <div>
+      <h1 class="pm-title">Program Manager Dashboard</h1>
+      <p class="pm-sub">
+        <span class="pm-role-pill"><i class="bi bi-star-fill me-1"></i>Program Manager</span>
+        <span class="ms-2 opacity-75">{{ user.get_full_name|default:user.username }}</span>
+        {% if programs %}<span class="ms-2 opacity-60">· {{ programs.count }} program{{ programs.count|pluralize }}</span>{% endif %}
+      </p>
+    </div>
+  </div>
+  <div class="pm-banner-right">
+    <a href="{% url 'attendance:today' %}" class="pm-quick-btn"><i class="bi bi-clock-history"></i><span>Attendance</span></a>
+    <a href="{% url 'tasks:create' %}" class="pm-quick-btn"><i class="bi bi-plus-circle"></i><span>New Task</span></a>
+    <a href="{% url 'events:list' %}" class="pm-quick-btn"><i class="bi bi-calendar-event"></i><span>Events</span></a>
+    <a href="{% url 'communication:announcement_create' %}" class="pm-quick-btn"><i class="bi bi-megaphone"></i><span>Announce</span></a>
+    <a href="{% url 'dashboard:reports' %}" class="pm-quick-btn"><i class="bi bi-file-earmark-bar-graph"></i><span>Reports</span></a>
+  </div>
+</div>
+
+<!-- ── Metric Cards ── -->
+<div class="pm-metrics">
+  <a href="{% url 'accounts:user_directory' %}" class="pm-metric pm-m-blue" style="text-decoration:none">
+    <i class="bi bi-people-fill pm-metric-icon"></i>
+    <div class="pm-metric-val">{{ total_staff }}</div>
+    <div class="pm-metric-lbl">Total Staff</div>
+  </a>
+  <a href="{% url 'attendance:today' %}" class="pm-metric pm-m-green" style="text-decoration:none">
+    <i class="bi bi-geo-alt-fill pm-metric-icon"></i>
+    <div class="pm-metric-val">{{ attendance_today }}</div>
+    <div class="pm-metric-lbl">Checked In Today</div>
+  </a>
+  <a href="{% url 'attendance:currently_in' %}" class="pm-metric pm-m-teal" style="text-decoration:none">
+    <i class="bi bi-circle-fill pm-metric-icon" style="animation:pulse 1.5s infinite"></i>
+    <div class="pm-metric-val">{{ checked_in_now }}</div>
+    <div class="pm-metric-lbl">Currently In</div>
+  </a>
+  <a href="{% url 'attendance:currently_out' %}" class="pm-metric pm-m-rose" style="text-decoration:none">
+    <i class="bi bi-person-dash-fill pm-metric-icon"></i>
+    <div class="pm-metric-val">{{ currently_out }}</div>
+    <div class="pm-metric-lbl">Currently Out</div>
+  </a>
+  <a href="{% url 'attendance:late_arrivals' %}" class="pm-metric pm-m-amber" style="text-decoration:none">
+    <i class="bi bi-alarm-fill pm-metric-icon"></i>
+    <div class="pm-metric-val">{{ late_arrivals }}</div>
+    <div class="pm-metric-lbl">Late Today</div>
+  </a>
+</div>
+
+<!-- ── Programs ── -->
+{% if programs %}
+<div class="panel mb-4">
+  <div class="pm-panel-hdr">
+    <span><i class="bi bi-diagram-3-fill me-2 text-primary"></i>My Programs</span>
+    {% if user.is_portal_admin %}<a href="{% url 'accounts:programs' %}" class="btn btn-xs btn-outline-primary">Manage All</a>{% endif %}
+  </div>
+  <div class="pm-prog-list">
+    {% for prog in programs %}
+    <div class="pm-prog-item">
+      <div class="pm-prog-dot"></div>
+      <div class="pm-prog-info">
+        <div class="pm-prog-name">{{ prog.name }}</div>
+        {% if prog.departments.all %}
+        <div class="pm-prog-depts">
+          {% for d in prog.departments.all %}<span class="pm-dept-chip">{{ d.name }}</span>{% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="pm-prog-meta text-muted small">
+        {% if prog.start_date %}{{ prog.start_date|date:"d M Y" }} →{% endif %}
+        {% if prog.end_date %}{{ prog.end_date|date:"d M Y" }}{% else %}Ongoing{% endif %}
+      </div>
+      <span class="pm-prog-badge {% if prog.is_active %}pmb-active{% else %}pmb-inactive{% endif %}">
+        {% if prog.is_active %}Active{% else %}Inactive{% endif %}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Main grid ── -->
+<div class="pm-grid">
+  <!-- Left: Tasks -->
+  <div>
+    <div class="panel mb-4">
+      <div class="pm-panel-hdr">
+        <span><i class="bi bi-check2-square me-2 text-success"></i>All Tasks</span>
+        <a href="{% url 'tasks:list' %}" class="btn btn-xs btn-outline-primary">View All</a>
+      </div>
+      <div class="pm-task-summary">
+        <div class="pm-ts-item"><span class="pm-ts-dot" style="background:#9ca3af"></span><span class="pm-ts-lbl">Pending</span><span class="pm-ts-val">{{ pending_tasks }}</span></div>
+        <div class="pm-ts-item"><span class="pm-ts-dot" style="background:#3b82f6"></span><span class="pm-ts-lbl">In Progress</span><span class="pm-ts-val">{{ inprogress_tasks }}</span></div>
+        <div class="pm-ts-item"><span class="pm-ts-dot" style="background:#10b981"></span><span class="pm-ts-lbl">Completed</span><span class="pm-ts-val">{{ completed_tasks }}</span></div>
+      </div>
+      {% for task in recent_tasks %}
+      <a class="pm-task-row" href="{% url 'tasks:detail' task.pk %}">
+        <span class="pm-task-dot {{ task.status }}"></span>
+        <span class="pm-task-title">{{ task.title|truncatechars:38 }}</span>
+        <span class="pm-task-who text-muted">{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}</span>
+        <span class="pm-task-badge {{ task.priority }}">{{ task.get_priority_display }}</span>
+      </a>
+      {% empty %}<p class="text-muted small mt-2">No tasks found.</p>{% endfor %}
+    </div>
+
+    <!-- Departments -->
+    <div class="panel">
+      <div class="pm-panel-hdr">
+        <span><i class="bi bi-building me-2 text-warning"></i>Departments</span>
+        <span class="badge bg-secondary">{{ departments.count }}</span>
+      </div>
+      {% for dept in departments %}
+      <div class="pm-dept-row">
+        <div class="pm-dept-icon-sm"><i class="bi bi-building-fill"></i></div>
+        <div class="pm-dept-info">
+          <div class="fw-semibold" style="font-size:.88rem;color:var(--ink)">{{ dept.name }}</div>
+          <div class="text-muted" style="font-size:.74rem">{{ dept.users.count }} member{{ dept.users.count|pluralize }}</div>
+        </div>
+        <span class="badge bg-primary rounded-pill">{{ dept.users.count }}</span>
+      </div>
+      {% empty %}<p class="text-muted small">No departments yet.</p>{% endfor %}
+    </div>
+  </div>
+
+  <!-- Right: Attendance -->
+  <div>
+    <div class="panel">
+      <div class="pm-panel-hdr">
+        <span><i class="bi bi-clock-history me-2 text-info"></i>Recent Attendance</span>
+        <a href="{% url 'attendance:today' %}" class="btn btn-xs btn-outline-info">Full List</a>
+      </div>
+      {% if recent_attendance %}
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0" style="font-size:.82rem">
+          <thead><tr>
+            <th>Member</th><th>Check In</th><th>Check Out</th><th>Hours</th><th>Status</th>
+          </tr></thead>
+          <tbody>
+            {% for rec in recent_attendance %}
+            <tr>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  {% if rec.user.profile_photo %}
+                  <img src="{{ rec.user.profile_photo.url }}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">
+                  {% else %}
+                  <span style="width:24px;height:24px;border-radius:50%;background:#dbeafe;color:#1d4ed8;display:inline-flex;align-items:center;justify-content:center;font-size:.65rem">
+                    <i class="bi bi-person-fill"></i>
+                  </span>
+                  {% endif %}
+                  <div>
+                    <div class="fw-semibold" style="font-size:.8rem">{{ rec.user.get_full_name|default:rec.user.username }}</div>
+                    <div class="text-muted" style="font-size:.68rem">{% if rec.user.department %}{{ rec.user.department }}{% endif %}</div>
+                  </div>
+                </div>
+              </td>
+              <td class="fw-semibold">{{ rec.check_in_time|date:"H:i" }}<span class="text-muted ms-1" style="font-size:.72rem">{{ rec.check_in_time|date:"d M" }}</span></td>
+              <td>{% if rec.check_out_time %}{{ rec.check_out_time|date:"H:i" }}{% else %}<span class="badge bg-success" style="font-size:.6rem">Active</span>{% endif %}</td>
+              <td>{% if rec.total_hours %}<span class="hours-badge">{{ rec.total_hours|floatformat:1 }}h</span>{% else %}—{% endif %}</td>
+              <td>{% if rec.arrival_status %}<span class="status-chip {{ rec.arrival_status }}">{{ rec.get_arrival_status_display }}</span>{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<p class="text-muted small">No attendance records.</p>{% endif %}
+    </div>
+  </div>
+</div>
+
+<style>
+.pm-banner{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;background:linear-gradient(135deg,#0a1628,#1e3a5f);border-radius:14px;padding:24px 28px;margin-bottom:24px}
+.pm-banner-left{display:flex;align-items:center;gap:16px}
+.pm-icon{width:52px;height:52px;border-radius:12px;background:rgba(255,255,255,.15);color:#fcd34d;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0}
+.pm-title{font-size:1.4rem;font-weight:800;color:#fff;margin:0}
+.pm-sub{color:rgba(255,255,255,.65);font-size:.82rem;margin:4px 0 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pm-role-pill{background:rgba(252,211,77,.2);color:#fcd34d;font-size:.7rem;font-weight:700;padding:2px 10px;border-radius:20px;display:inline-flex;align-items:center}
+.pm-banner-right{display:flex;gap:8px;flex-wrap:wrap}
+.pm-quick-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,.1);color:#fff;text-decoration:none;font-size:.7rem;font-weight:700;transition:background .2s;min-width:60px;text-align:center}
+.pm-quick-btn i{font-size:1.1rem}
+.pm-quick-btn:hover{background:rgba(255,255,255,.22);color:#fff}
+.pm-metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px}
+@media(max-width:900px){.pm-metrics{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.pm-metrics{grid-template-columns:repeat(2,1fr)}}
+.pm-metric{border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:4px}
+.pm-m-blue{background:linear-gradient(135deg,#1e40af,#3b82f6);color:#fff}
+.pm-m-green{background:linear-gradient(135deg,#065f46,#059669);color:#fff}
+.pm-m-teal{background:linear-gradient(135deg,#0e7490,#06b6d4);color:#fff}
+.pm-m-rose{background:linear-gradient(135deg,#9f1239,#f43f5e);color:#fff}
+.pm-m-amber{background:linear-gradient(135deg,#92400e,#f59e0b);color:#fff}
+.pm-metric-icon{font-size:1.4rem;opacity:.75;margin-bottom:4px}
+.pm-metric-val{font-size:2rem;font-weight:800;line-height:1;color:#fff}
+.pm-metric-lbl{font-size:.72rem;font-weight:600;color:rgba(255,255,255,.85)}
+a.pm-metric{text-decoration:none;cursor:pointer;transition:transform .15s,box-shadow .15s}
+a.pm-metric:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.pm-panel-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.pm-panel-hdr>span{font-weight:700;font-size:.95rem;color:var(--ink)}
+.pm-grid{display:grid;grid-template-columns:1fr 1.3fr;gap:20px}
+@media(max-width:900px){.pm-grid{grid-template-columns:1fr}}
+/* Programs */
+.pm-prog-list{display:flex;flex-direction:column;gap:8px}
+.pm-prog-item{display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;background:var(--surface2);border:1px solid var(--border)}
+.pm-prog-dot{width:10px;height:10px;border-radius:50%;background:#3b82f6;flex-shrink:0}
+.pm-prog-info{flex:1}
+.pm-prog-name{font-weight:700;font-size:.88rem;color:var(--ink)}
+.pm-prog-depts{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.pm-dept-chip{font-size:.65rem;font-weight:600;padding:1px 7px;border-radius:20px;background:#dbeafe;color:#1d4ed8}
+.pm-prog-meta{font-size:.74rem;white-space:nowrap}
+.pm-prog-badge{font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.pmb-active{background:#dcfce7;color:#166534}
+.pmb-inactive{background:#f3f4f6;color:#6b7280}
+/* Tasks */
+.pm-task-summary{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.pm-ts-item{display:flex;align-items:center;gap:6px;font-size:.82rem}
+.pm-ts-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.pm-ts-lbl{color:var(--muted)}
+.pm-ts-val{font-weight:700;color:var(--ink)}
+.pm-task-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);text-decoration:none;color:inherit}
+.pm-task-row:last-child{border-bottom:none}
+.pm-task-row:hover{background:var(--surface2);margin:0 -20px;padding:8px 20px;border-radius:6px}
+.pm-task-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.pm-task-dot.pending{background:#9ca3af}
+.pm-task-dot.in_progress{background:#3b82f6}
+.pm-task-dot.under_review{background:#8b5cf6}
+.pm-task-dot.completed{background:#10b981}
+.pm-task-title{flex:1;font-size:.84rem;font-weight:600;color:var(--ink)}
+.pm-task-who{font-size:.74rem;color:var(--muted)}
+.pm-task-badge{font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:20px;text-transform:uppercase}
+.pm-task-badge.low{background:#dcfce7;color:#166534}
+.pm-task-badge.medium{background:#fef9c3;color:#854d0e}
+.pm-task-badge.high{background:#fee2e2;color:#991b1b}
+.pm-task-badge.critical{background:#4c0519;color:#fda4af}
+/* Departments */
+.pm-dept-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.pm-dept-row:last-child{border-bottom:none}
+.pm-dept-icon-sm{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#0F4C81,#1E88E5);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0}
+.pm-dept-info{flex:1}
+/* Attendance */
+.hours-badge{background:#1e40af;color:#fff;font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:20px}
+.status-chip{font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:20px;text-transform:uppercase}
+.status-chip.early{background:#dcfce7;color:#166534}
+.status-chip.on_time{background:#dbeafe;color:#1d4ed8}
+.status-chip.late{background:#fee2e2;color:#991b1b}
+/* Dark mode */
+html[data-theme="dark"] .pm-prog-item{background:var(--surface2);border-color:var(--border)}
+html[data-theme="dark"] .pm-dept-chip{background:rgba(59,130,246,.2);color:#93c5fd}
+html[data-theme="dark"] .pmb-active{background:rgba(34,197,94,.2);color:#86efac}
+html[data-theme="dark"] .pmb-inactive{background:rgba(107,114,128,.2);color:#9ca3af}
+html[data-theme="dark"] .pm-task-badge.medium{background:rgba(234,179,8,.18);color:#fde047}
+html[data-theme="dark"] .pm-task-badge.high{background:rgba(239,68,68,.18);color:#fca5a5}
+html[data-theme="dark"] .pm-task-badge.low{background:rgba(34,197,94,.18);color:#86efac}
+html[data-theme="dark"] .pm-task-badge.critical{background:rgba(244,63,94,.25);color:#fb7185}
+html[data-theme="dark"] .hours-badge{background:#1e3a5f;color:#93c5fd}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+{% endblock %}

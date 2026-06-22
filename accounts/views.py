@@ -453,3 +453,181 @@ def password_recover(request):
                 return render(request, "registration/password_recover_set.html", {"form": set_form})
 
     return render(request, "registration/password_recover.html", {"error": error})
+
+
+# ── Program Manager Dashboard ─────────────────────────────────────────────
+
+@login_required
+def program_manager_dashboard(request):
+    """
+    Professional PM dashboard — org-wide stats with program context.
+    Accessible only by Program Managers (and Admin for preview).
+    """
+    from django.utils import timezone
+    from attendance.models import Attendance
+    from tasks.access import visible_tasks_for
+    from communication.models import DepartmentChannel
+    from .models import Program
+
+    if not (request.user.role == "program_manager" or request.user.is_portal_admin()):
+        messages.error(request, "Access restricted to Program Managers.")
+        return redirect("dashboard:home")
+
+    today = timezone.localdate()
+
+    # ── Programs this PM manages ──────────────────────────────────────────
+    if request.user.is_portal_admin():
+        programs = Program.objects.filter(is_active=True).prefetch_related("departments")
+    else:
+        programs = Program.objects.filter(
+            manager=request.user, is_active=True
+        ).prefetch_related("departments")
+
+    # ── Org-wide attendance stats ──────────────────────────────────────────
+    checked_in_pks = Attendance.objects.filter(
+        check_in_time__date=today
+    ).values_list("user_id", flat=True)
+    total_staff     = User.objects.filter(is_active=True).count()
+    attendance_today= len(set(checked_in_pks))
+    checked_in_now  = Attendance.objects.filter(status=Attendance.Status.CHECKED_IN).count()
+    currently_out   = User.objects.filter(is_active=True).exclude(pk__in=checked_in_pks).count()
+    late_arrivals   = Attendance.objects.filter(
+        check_in_time__date=today,
+        arrival_status=Attendance.ArrivalStatus.LATE,
+    ).count()
+
+    # ── Recent attendance ─────────────────────────────────────────────────
+    recent_attendance = Attendance.objects.select_related(
+        "user", "project_site"
+    ).order_by("-check_in_time")[:25]
+
+    # ── Tasks ─────────────────────────────────────────────────────────────
+    all_tasks = visible_tasks_for(request.user)
+    pending_tasks    = all_tasks.filter(status="pending").count()
+    inprogress_tasks = all_tasks.filter(status="in_progress").count()
+    completed_tasks  = all_tasks.filter(status="completed").count()
+    recent_tasks     = all_tasks.order_by("due_date")[:10]
+
+    # ── All departments ───────────────────────────────────────────────────
+    departments = Department.objects.prefetch_related("users").all()
+
+    # ── Channels ──────────────────────────────────────────────────────────
+    channels = DepartmentChannel.objects.select_related("department").all()
+
+    return render(request, "accounts/program_manager.html", {
+        "programs":          programs,
+        "total_staff":       total_staff,
+        "attendance_today":  attendance_today,
+        "checked_in_now":    checked_in_now,
+        "currently_out":     currently_out,
+        "late_arrivals":     late_arrivals,
+        "recent_attendance": recent_attendance,
+        "all_tasks":         all_tasks,
+        "pending_tasks":     pending_tasks,
+        "inprogress_tasks":  inprogress_tasks,
+        "completed_tasks":   completed_tasks,
+        "recent_tasks":      recent_tasks,
+        "departments":       departments,
+        "channels":          channels,
+        "today":             today,
+    })
+
+
+# ── Programs (Admin CRUD) ─────────────────────────────────────────────────
+
+@role_required("admin")
+def program_list(request):
+    from .models import Program
+    programs = Program.objects.select_related("manager").prefetch_related("departments").order_by("-is_active", "name")
+    return render(request, "accounts/programs.html", {"programs": programs})
+
+
+@role_required("admin")
+def program_create(request):
+    from .forms import ProgramForm
+    form = ProgramForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        prog = form.save()
+        from core.audit import audit
+        audit(request, "program_created",
+              f'{request.user} created program: {prog.name}.',
+              category="system", obj=prog)
+        messages.success(request, f"Program '{prog.name}' created.")
+        return redirect("accounts:programs")
+    return render(request, "form.html", {"form": form, "title": "Create Program"})
+
+
+@role_required("admin")
+def program_edit(request, pk):
+    from .models import Program
+    from .forms import ProgramForm
+    prog = get_object_or_404(Program, pk=pk)
+    form = ProgramForm(request.POST or None, instance=prog)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        from core.audit import audit
+        audit(request, "program_updated",
+              f'{request.user} updated program: {prog.name}.',
+              category="system", obj=prog)
+        messages.success(request, f"Program '{prog.name}' updated.")
+        return redirect("accounts:programs")
+    return render(request, "form.html", {"form": form, "title": f"Edit Program: {prog.name}"})
+
+
+@role_required("admin")
+def program_delete(request, pk):
+    from .models import Program
+    prog = get_object_or_404(Program, pk=pk)
+    if request.method == "POST":
+        name = prog.name
+        prog.delete()
+        messages.success(request, f"Program '{name}' deleted.")
+    return redirect("accounts:programs")
+
+
+# ── Custom Roles (Admin CRUD) ─────────────────────────────────────────────
+
+@role_required("admin")
+def custom_role_list(request):
+    from .models import CustomRole
+    roles = CustomRole.objects.prefetch_related("users").all()
+    return render(request, "accounts/custom_roles.html", {"roles": roles})
+
+
+@role_required("admin")
+def custom_role_create(request):
+    from .forms import CustomRoleForm
+    form = CustomRoleForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        role = form.save()
+        from core.audit import audit
+        audit(request, "custom_role_created",
+              f'{request.user} created custom role: {role.name}.',
+              category="users", obj=role)
+        messages.success(request, f"Role '{role.name}' created.")
+        return redirect("accounts:custom_roles")
+    return render(request, "form.html", {"form": form, "title": "Create Custom Role"})
+
+
+@role_required("admin")
+def custom_role_edit(request, pk):
+    from .models import CustomRole
+    from .forms import CustomRoleForm
+    role = get_object_or_404(CustomRole, pk=pk)
+    form = CustomRoleForm(request.POST or None, instance=role)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, f"Role '{role.name}' updated.")
+        return redirect("accounts:custom_roles")
+    return render(request, "form.html", {"form": form, "title": f"Edit Role: {role.name}"})
+
+
+@role_required("admin")
+def custom_role_delete(request, pk):
+    from .models import CustomRole
+    role = get_object_or_404(CustomRole, pk=pk)
+    if request.method == "POST":
+        name = role.name
+        role.delete()
+        messages.success(request, f"Role '{name}' deleted.")
+    return redirect("accounts:custom_roles")
