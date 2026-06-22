@@ -15,6 +15,8 @@ urlpatterns = [
     path("violations/", views.geofence_violations, name="geofence_violations"),
     path("violations/report/<str:fmt>/", views.geofence_violations_report, name="geofence_violations_report"),
     path("violations/<int:pk>/acknowledge/", views.acknowledge_violation, name="acknowledge_violation"),
+    # Admin: manually resolve a dangling 'location still off' log entry
+    path("location-log/<int:user_pk>/resolve/<int:log_pk>/", views.admin_resolve_location_log, name="admin_resolve_location_log"),
     # Filtered views for dashboard metric cards
     path("today/", views.attendance_today, name="today"),
     path("currently-in/", views.attendance_currently_in, name="currently_in"),

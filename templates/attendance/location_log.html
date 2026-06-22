@@ -38,6 +38,17 @@
   </div>
 </div>
 
+{% if unresolved_count and request.user.is_portal_admin %}
+<div class="alert alert-warning d-flex align-items-start gap-3 mb-3">
+  <i class="bi bi-exclamation-triangle-fill fs-5 mt-1 flex-shrink-0"></i>
+  <div>
+    <strong>{{ unresolved_count }} unresolved location log{{ unresolved_count|pluralize }}</strong> for this user.
+    If their location is confirmed back on, use the <strong>Resolve</strong> button to close each entry manually.
+    This auto-resolves when the user checks out or turns location back on.
+  </div>
+</div>
+{% endif %}
+
 <div class="panel">
   {% if logs %}
   <div class="table-responsive">
@@ -49,11 +60,12 @@
           <th>Turned On At</th>
           <th>Duration Off</th>
           <th>Status</th>
+          {% if request.user.is_portal_admin %}<th style="width:110px">Action</th>{% endif %}
         </tr>
       </thead>
       <tbody>
         {% for log in logs %}
-        <tr>
+        <tr {% if not log.turned_on_at %}class="table-danger"{% endif %}>
           <td>
             {% if log.turned_on_at %}
             <span style="color:#16a34a;font-size:1.1rem"><i class="bi bi-check-circle-fill"></i></span>
@@ -86,9 +98,26 @@
             {% if log.turned_on_at %}
             <span class="badge bg-success">Resolved</span>
             {% else %}
-            <span class="badge bg-danger">Location Off</span>
+            <span class="badge bg-danger">Unresolved</span>
             {% endif %}
           </td>
+          {% if request.user.is_portal_admin %}
+          <td>
+            {% if not log.turned_on_at %}
+            <form method="post"
+                  action="{% url 'attendance:admin_resolve_location_log' target.pk log.pk %}"
+                  onsubmit="return confirm('Mark this location log as resolved (location on) now?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-xs btn-outline-success"
+                      title="Manually resolve — marks location as restored now">
+                <i class="bi bi-check2 me-1"></i>Resolve
+              </button>
+            </form>
+            {% else %}
+            <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+          {% endif %}
         </tr>
         {% endfor %}
       </tbody>
@@ -97,6 +126,10 @@
   <div class="mt-3 text-muted small">
     <i class="bi bi-info-circle me-1"></i>
     Showing last {{ logs|length }} location event{{ logs|length|pluralize }}.
+    {% if request.user.is_portal_admin %}
+    Use <strong>Resolve</strong> to manually close an entry when the user's location is confirmed back on
+    but the system did not auto-detect it.
+    {% endif %}
   </div>
   {% else %}
   <div class="empty-state">
@@ -106,4 +139,9 @@
   </div>
   {% endif %}
 </div>
+
+<style>
+html[data-theme="dark"] .table-danger>td,
+html[data-theme="dark"] .table-danger{background:rgba(239,68,68,.1) !important;color:var(--ink)}
+</style>
 {% endblock %}

@@ -132,6 +132,8 @@
     {% if user.is_portal_admin %}
     <a href="{% url 'accounts:user_directory' %}"><i class="bi bi-people"></i> User Directory</a>
     <a href="{% url 'accounts:departments' %}"><i class="bi bi-building"></i> Departments</a>
+    {% elif user.can_view_users %}
+    <a href="{% url 'accounts:user_directory' %}"><i class="bi bi-people"></i> User Directory</a>
     {% endif %}
 
     <a href="{% url 'tasks:list' %}"><i class="bi bi-check2-square"></i> Tasks</a>

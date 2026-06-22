@@ -128,7 +128,9 @@
     _reportedOn  = false;
     _isOff       = true;
     setLocationOff();
-    if (window.portalSound) window.portalSound.play("location_off");
+    // Only play sound if the user is currently checked in at a site —
+    // avoids noise on login/every-page load when location is simply unavailable.
+    if (checkedIn && window.portalSound) window.portalSound.play("location_off");
     reportStatus("off");
     console.info("[Geofence] Location OFF —", reason);
   }
@@ -140,7 +142,8 @@
     _reportedOn  = true;
     _reportedOff = false;
     _isOff       = false;
-    if (window.portalSound) window.portalSound.play("location_on");
+    // Only play sound if the user is currently checked in at a site.
+    if (checkedIn && window.portalSound) window.portalSound.play("location_on");
     reportStatus("on");
     console.info("[Geofence] Location ON — restored.");
     if (checkedIn && pingUrl) doGeofencePing(); // immediate geofence check

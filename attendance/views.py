@@ -124,6 +124,11 @@ def auto_checkout_stale_sessions():
         record.status              = Attendance.Status.CHECKED_OUT
         record.save()
 
+        # Close any dangling LocationLog entries
+        from .models import LocationLog as _LocLog
+        for open_log in _LocLog.objects.filter(user=record.user, turned_on_at__isnull=True):
+            open_log.close()
+
         user_name    = record.user.get_full_name() or record.user.username
         close_str    = timezone.localtime(record_close_time).strftime("%H:%M")
         date_str     = check_in_local.strftime("%d %b %Y")
@@ -437,6 +442,14 @@ def check_out(request):
         link="/attendance/",
     )
     log_activity(request, "check_out", f"Hours: {record.total_hours}, departure: {dep_label}")
+
+    # ── Close any dangling LocationLog entries for this user ───────────────
+    # If location was turned off but never restored before checkout, mark as resolved now.
+    from .models import LocationLog
+    open_logs = LocationLog.objects.filter(user=request.user, turned_on_at__isnull=True)
+    for open_log in open_logs:
+        open_log.close()
+
     messages.success(request, f"Checked out. Hours recorded: {record.total_hours}h ({dep_label}).")
     return redirect("attendance:home")
 
@@ -965,9 +978,11 @@ def user_location_log(request, user_pk):
     from .models import LocationLog
     target = get_object_or_404(PortalUser, pk=user_pk)
     logs = LocationLog.objects.filter(user=target).order_by("-turned_off_at")[:60]
+    unresolved_count = LocationLog.objects.filter(user=target, turned_on_at__isnull=True).count()
     return render(request, "attendance/location_log.html", {
         "target": target,
         "logs": logs,
+        "unresolved_count": unresolved_count,
     })
 
 
@@ -1026,6 +1041,28 @@ def acknowledge_violation(request, pk):
         violation.save(update_fields=["resolution", "notes"])
         messages.success(request, f"Violation #{pk} acknowledged.")
     return redirect("attendance:geofence_violations")
+
+
+@role_required("admin")
+def admin_resolve_location_log(request, log_pk):
+    """
+    Admin-only: manually resolve a 'still off' LocationLog entry.
+    Used when a user's location shows as unresolved but they have turned it back on
+    (e.g. GPS took time to reconnect, or the browser did not fire the 'on' event).
+    Sets turned_on_at to now and calculates duration.
+    """
+    from .models import LocationLog
+    log = get_object_or_404(LocationLog, pk=log_pk, turned_on_at__isnull=True)
+    if request.method == "POST":
+        log.close()
+        messages.success(
+            request,
+            f"Location log #{log_pk} resolved — duration was {log.duration_display}."
+        )
+        # Redirect back to the user's location log page
+        return redirect("attendance:location_log", user_pk=log.user_id)
+    # If accessed via GET, just redirect (should be POST only)
+    return redirect("attendance:location_log", user_pk=log.user_id)
 
 
 

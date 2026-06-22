@@ -20,9 +20,17 @@ def profile(request):
     return render(request, "accounts/profile.html", {"form": form})
 
 
-@role_required("admin")
+@login_required
 def user_directory(request):
-    """Admin panel — all users grouped by role."""
+    """
+    Admin: full user directory with edit/deactivate/reset-password actions.
+    Program Manager: read-only view — can see all users but cannot modify them.
+    """
+    if not (request.user.is_portal_admin() or request.user.can_view_users()):
+        from django.contrib import messages as _msg
+        _msg.error(request, "You do not have permission to access that page.")
+        return redirect("dashboard:home")
+
     roles = [
         ("admin",           "Admin",           "danger"),
         ("program_manager", "Program Manager", "primary"),
@@ -56,6 +64,8 @@ def user_directory(request):
         "active":      active,
         "inactive":    total - active,
         "departments": departments,
+        # PM gets read-only: hide edit/deactivate/reset-password actions
+        "readonly_view": not request.user.is_portal_admin(),
     })
 
 

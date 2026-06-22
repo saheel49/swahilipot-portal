@@ -43,11 +43,18 @@ class User(AbstractUser):
         return self.role == self.Role.DEPARTMENT_HEAD
 
     # ── capability gates ──────────────────────────────────────────────────
+    #
+    # Role hierarchy (highest → lowest authority):
+    #   Admin          — full control over everything, head of portal
+    #   Program Manager — broad access; cannot manage users/departments/sites
+    #   Department Head — scoped to own department only; limited org-wide access
+    #   Staff / Intern  — self-service only
+    #
 
     def can_manage_tasks(self):
         """
         Admin and PM can create/assign tasks to anyone.
-        Dept Head can only create tasks for their own department members.
+        Dept Head can create tasks but only for their own department members.
         Staff/Intern cannot create tasks.
         """
         return self.is_portal_admin() or self.role in {
@@ -55,59 +62,105 @@ class User(AbstractUser):
         }
 
     def can_manage_events(self):
-        """Only Admin and Program Manager create/manage events."""
+        """
+        Admin has full event control (create, edit, delete any event).
+        PM can create and manage events but cannot delete Admin-created events.
+        Dept Head can view events only — cannot create or manage.
+        """
         return self.is_portal_admin() or self.role == self.Role.PROGRAM_MANAGER
 
     def can_monitor_attendance(self):
         """
         Admin and PM see org-wide attendance stats.
-        Dept Head sees attendance but only for their own department.
+        Dept Head sees attendance restricted to their own department only.
         """
         return self.is_portal_admin() or self.role in {
             self.Role.PROGRAM_MANAGER, self.Role.DEPARTMENT_HEAD
         }
 
     def can_monitor_all_attendance(self):
-        """Admin and PM only — org-wide attendance access, not dept-restricted."""
+        """
+        Admin and PM — unrestricted org-wide attendance access.
+        Dept Head is excluded (use can_monitor_attendance for dept-scoped access).
+        """
         return self.is_portal_admin() or self.role == self.Role.PROGRAM_MANAGER
 
     def can_manage_communication(self):
         """
-        Admin and PM can publish org-wide announcements.
-        Dept Head can only post in their department channel.
+        Admin and PM can publish org-wide announcements and manage channels.
+        Dept Head can post only in their department channel.
         """
         return self.is_portal_admin() or self.role in {
             self.Role.PROGRAM_MANAGER, self.Role.DEPARTMENT_HEAD
         }
 
     def can_publish_announcements(self):
-        """Only Admin and PM can create org-wide announcements."""
+        """
+        Admin can publish announcements visible to the entire org.
+        PM can also publish org-wide announcements.
+        Dept Head cannot publish org-wide — dept channel only.
+        """
         return self.is_portal_admin() or self.role == self.Role.PROGRAM_MANAGER
 
     def can_view_reports(self):
-        """Only Admin and Program Manager download full org reports."""
+        """
+        Admin can view and download all org reports including system/audit logs.
+        PM can download standard org reports (attendance, tasks, events).
+        Dept Head has no access to the reports section.
+        """
         return self.is_portal_admin() or self.role == self.Role.PROGRAM_MANAGER
 
     def can_review_suggestions(self):
         """
-        Admin and PM review all suggestions.
-        Dept Head can review suggestions from their own department members.
+        Admin and PM can review all suggestions across the org.
+        Dept Head can review suggestions from their own department members only.
         """
         return self.is_portal_admin() or self.role in {
             self.Role.PROGRAM_MANAGER, self.Role.DEPARTMENT_HEAD
         }
 
     def can_manage_users(self):
-        """Only Admin can add/edit/deactivate users and manage departments."""
+        """
+        Only Admin can add, edit, deactivate users and manage departments.
+        PM and Dept Head cannot modify user accounts or department membership.
+        """
         return self.is_portal_admin()
 
+    def can_view_users(self):
+        """
+        Admin has full edit access to the user directory.
+        PM can view the user directory in read-only mode.
+        Dept Head cannot access the user directory.
+        """
+        return self.is_portal_admin() or self.role == self.Role.PROGRAM_MANAGER
+
     def can_view_geofence_violations(self):
-        """Admin and PM see all geofence violations. Dept Head cannot."""
+        """
+        Admin and PM can view geofence violations for the whole org.
+        Dept Head cannot — violations are an org-wide security concern.
+        """
         return self.is_portal_admin() or self.role == self.Role.PROGRAM_MANAGER
 
     def can_view_location_activity(self):
-        """Admin and PM see location activity. Dept Head cannot."""
+        """
+        Admin and PM can monitor real-time location activity.
+        Dept Head cannot view org-wide location activity.
+        """
         return self.is_portal_admin() or self.role == self.Role.PROGRAM_MANAGER
+
+    def can_manage_project_sites(self):
+        """
+        Only Admin can create or edit project sites (GPS boundaries).
+        PM and Dept Head cannot modify site configuration.
+        """
+        return self.is_portal_admin()
+
+    def can_manage_departments(self):
+        """
+        Only Admin can create, edit departments and assign users to them.
+        PM and Dept Head cannot modify department structure.
+        """
+        return self.is_portal_admin()
 
     def save(self, *args, **kwargs):
         if self.role == self.Role.ADMIN:
