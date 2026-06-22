@@ -37,6 +37,8 @@
   let _isOff          = false;  // true = location is currently off
   let _reportedOff    = false;  // sent "off" to server for this cycle
   let _reportedOn     = false;  // sent "on" to server for this cycle (resets when off again)
+  let _baselineSet    = false;  // true once we've had at least one successful location read
+                                // prevents false "location off" sound on initial page load
 
   // ── UI helpers (silently no-op when not on attendance page) ──────────────
 
@@ -128,18 +130,29 @@
     _reportedOn  = false;
     _isOff       = true;
     setLocationOff();
-    if (window.portalSound) window.portalSound.play("location_off");
+    // Play sound only after baseline is set (i.e. location was confirmed ON at
+    // least once this session). This prevents the spurious sound on page load
+    // when the browser hasn't granted GPS yet. Sound plays regardless of
+    // whether the user is checked in — turning location off is always audible.
+    if (_baselineSet && window.portalSound) window.portalSound.play("location_off");
     reportStatus("off");
     console.info("[Geofence] Location OFF —", reason);
   }
 
   // ── On location turning ON ────────────────────────────────────────────────
   function handleLocationOn() {
+    // Mark baseline — we've confirmed location works at least once this session
+    if (!_baselineSet) {
+      _baselineSet = true;
+      // First successful read: just set baseline, no sound
+      if (!_reportedOff) return;
+    }
     if (!_reportedOff) return; // never went off — nothing to restore
     if (_reportedOn)   return; // already sent "on" for this cycle
     _reportedOn  = true;
     _reportedOff = false;
     _isOff       = false;
+    // Play location-on sound whenever location is restored (checked in or not)
     if (window.portalSound) window.portalSound.play("location_on");
     reportStatus("on");
     console.info("[Geofence] Location ON — restored.");
@@ -186,6 +199,7 @@
     setWaiting();
     navigator.geolocation.getCurrentPosition(
       function (pos) {
+        _baselineSet = true;  // GPS confirmed available
         handleLocationOn();
         pingGeofenceServer(pos.coords.latitude, pos.coords.longitude);
       },
