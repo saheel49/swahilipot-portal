@@ -67,13 +67,15 @@ def audit_log(request):
 
 @login_required
 def audit_log_export(request):
-    """Export filtered audit log as Excel."""
+    """Export filtered audit log as Excel or PDF."""
     if not request.user.is_portal_admin():
         messages.error(request, "Only admins can export the audit log.")
         return redirect("dashboard:home")
 
-    from core.reports import excel_response
+    from core.reports import excel_response, pdf_response
     from django.utils import timezone
+
+    fmt = request.GET.get("fmt", "xlsx").strip().lower()
 
     qs = AuditLog.objects.select_related("user").order_by("-timestamp")
 
@@ -96,8 +98,8 @@ def audit_log_export(request):
     if date_from: qs = qs.filter(timestamp__date__gte=date_from)
     if date_to:   qs = qs.filter(timestamp__date__lte=date_to)
 
-    headers = ["Timestamp", "User", "Category", "Severity", "Action", "Description",
-               "Object Type", "Object ID", "Object", "Method", "Path", "IP Address"]
+    headers = ["Timestamp", "User", "Category", "Severity", "Action",
+               "Description", "Object Type", "Object", "Method", "Path", "IP"]
     rows = []
     for log in qs:
         rows.append([
@@ -107,12 +109,18 @@ def audit_log_export(request):
             log.get_severity_display(),
             log.action,
             log.description,
-            log.object_type or "—",
-            log.object_id or "—",
+            f"{log.object_type} #{log.object_id}" if log.object_type else "—",
             log.object_repr or "—",
             log.method or "—",
             log.path or "—",
             log.ip_address or "—",
         ])
 
+    if fmt == "pdf":
+        return pdf_response(
+            "audit-log-report",
+            "System Audit Log",
+            headers, rows,
+            subtitle=f"Exported by {request.user} on {timezone.localdate()}",
+        )
     return excel_response("audit-log-export", headers, rows)

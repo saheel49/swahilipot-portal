@@ -152,23 +152,79 @@ class DepartmentForm(django_forms.ModelForm):
 @login_required
 def department_list(request):
     """
-    Admin: sees all departments, can edit/assign/remove.
-    Department Head: sees only their own department with full management capability.
+    Admin: sees all departments with full management.
+    Department Head: sees their own professional dept dashboard.
     """
     if request.user.is_portal_admin():
         departments = Department.objects.prefetch_related("users").all()
         all_unassigned = User.objects.filter(is_active=True, department__isnull=True).order_by("first_name", "username")
-    elif request.user.role == "department_head" and request.user.department_id:
-        departments = Department.objects.prefetch_related("users").filter(pk=request.user.department_id)
-        all_unassigned = User.objects.none()  # Dept head cannot add users from outside
-    else:
-        messages.error(request, "You do not have permission to access that page.")
-        return redirect("dashboard:home")
+        return render(request, "accounts/departments.html", {
+            "departments":    departments,
+            "all_unassigned": all_unassigned,
+        })
 
-    return render(request, "accounts/departments.html", {
-        "departments":    departments,
-        "all_unassigned": all_unassigned,
-    })
+    elif request.user.role == "department_head" and request.user.department_id:
+        from django.utils import timezone
+        from attendance.models import Attendance
+        from tasks.access import visible_tasks_for
+        from communication.models import DepartmentChannel
+
+        dept = get_object_or_404(Department, pk=request.user.department_id)
+        today = timezone.localdate()
+        members = dept.users.filter(is_active=True).order_by("first_name", "username")
+        all_members = dept.users.all().order_by("first_name", "username")
+
+        # ── Attendance stats for this department ──────────────────────────
+        dept_filter = {"user__department_id": dept.pk}
+        checked_in_pks = Attendance.objects.filter(
+            check_in_time__date=today, **dept_filter
+        ).values_list("user_id", flat=True)
+
+        attendance_today  = len(checked_in_pks)
+        checked_in_now    = Attendance.objects.filter(status=Attendance.Status.CHECKED_IN, **dept_filter).count()
+        currently_out     = members.exclude(pk__in=checked_in_pks).count()
+        late_arrivals     = Attendance.objects.filter(
+            check_in_time__date=today,
+            arrival_status=Attendance.ArrivalStatus.LATE,
+            **dept_filter
+        ).count()
+
+        # ── Recent attendance records for this dept ───────────────────────
+        recent_attendance = Attendance.objects.filter(
+            **dept_filter
+        ).select_related("user", "project_site").order_by("-check_in_time")[:20]
+
+        # ── Tasks for this dept ────────────────────────────────────────────
+        dept_tasks = visible_tasks_for(request.user).order_by("due_date")[:20]
+        pending_tasks   = dept_tasks.filter(status="pending").count()
+        inprogress_tasks = dept_tasks.filter(status="in_progress").count()
+        completed_tasks = dept_tasks.filter(status="completed").count()
+
+        # ── Dept channels ─────────────────────────────────────────────────
+        channels = DepartmentChannel.objects.filter(department=dept)
+
+        return render(request, "accounts/department_head.html", {
+            "dept":               dept,
+            "members":            members,
+            "all_members":        all_members,
+            "total_members":      all_members.count(),
+            "active_members":     members.count(),
+            "attendance_today":   attendance_today,
+            "checked_in_now":     checked_in_now,
+            "currently_out":      currently_out,
+            "late_arrivals":      late_arrivals,
+            "recent_attendance":  recent_attendance,
+            "dept_tasks":         dept_tasks,
+            "pending_tasks":      pending_tasks,
+            "inprogress_tasks":   inprogress_tasks,
+            "completed_tasks":    completed_tasks,
+            "channels":           channels,
+            "today":              today,
+        })
+
+    else:
+        messages.error(request, "You are not assigned to a department.")
+        return redirect("dashboard:home")
 
 
 @role_required("admin")

@@ -83,6 +83,8 @@ def excel_response(filename, headers, rows, subtitle=""):
         return resp
 
     wb = Workbook()
+    wb.properties.creator = BRAND_NAME
+    wb.properties.title   = filename.replace("-", " ").title()
     ws = wb.active
     ws.title = "Report"
     ws.sheet_view.showGridLines = False
@@ -98,70 +100,71 @@ def excel_response(filename, headers, rows, subtitle=""):
 
     thin_blue  = Side(style="thin",   color=HEX_BORDER)
     thick_navy = Side(style="medium", color=HEX_NAVY)
-    no_border  = Side(style=None)
     hdr_border = Border(bottom=thick_navy, top=Side(style="thin", color=HEX_NAVY),
                         left=thin_blue, right=thin_blue)
 
-    n_cols = max(len(headers), 1)
+    n_cols   = max(len(headers), 1)
     last_col = get_column_letter(n_cols)
 
-    # ── Row 1: full-width navy brand banner ────────────────────────────────
-    ws.merge_cells(f"A1:{last_col}1")
-    ws["A1"] = f"  {BRAND_NAME}"
-    ws["A1"].font      = Font(color="FFFFFF", bold=True, size=14, name="Calibri")
-    ws["A1"].fill      = navy_fill
-    ws["A1"].alignment = Alignment(horizontal="left", vertical="center")
-    ws.row_dimensions[1].height = 32
+    # ── Helper: write a full-width merged row ─────────────────────────────
+    # Must write cell BEFORE merging to avoid protected-view corruption
+    def write_banner(row_num, value, font, fill, height, align=None):
+        cell = ws.cell(row=row_num, column=1, value=value)
+        cell.font      = font
+        cell.fill      = fill
+        cell.alignment = align or Alignment(horizontal="left", vertical="center")
+        ws.row_dimensions[row_num].height = height
+        if n_cols > 1:
+            ws.merge_cells(f"A{row_num}:{last_col}{row_num}")
 
-    # ── Row 2: tagline ─────────────────────────────────────────────────────
-    ws.merge_cells(f"A2:{last_col}2")
-    ws["A2"] = f"  {BRAND_TAGLINE}"
-    ws["A2"].font      = Font(color="DBEAFE", size=8, italic=True, name="Calibri")
-    ws["A2"].fill      = blue_fill
-    ws["A2"].alignment = Alignment(horizontal="left", vertical="center")
-    ws.row_dimensions[2].height = 16
+    # ── Banner rows ────────────────────────────────────────────────────────
+    write_banner(1,
+        f"  {BRAND_NAME}",
+        Font(color="FFFFFF", bold=True, size=14, name="Calibri"),
+        navy_fill, 32)
 
-    # ── Row 3: contact line ────────────────────────────────────────────────
-    ws.merge_cells(f"A3:{last_col}3")
-    ws["A3"] = f"  {BRAND_ADDRESS}   |   {BRAND_WEBSITE}   |   {BRAND_EMAIL}   |   {BRAND_PHONE}"
-    ws["A3"].font      = Font(color="DBEAFE", size=7, name="Calibri")
-    ws["A3"].fill      = blue_fill
-    ws["A3"].alignment = Alignment(horizontal="left", vertical="center")
-    ws.row_dimensions[3].height = 14
+    write_banner(2,
+        f"  {BRAND_TAGLINE}",
+        Font(color="DBEAFE", size=8, italic=True, name="Calibri"),
+        blue_fill, 16)
 
-    # ── Row 4: gold separator ──────────────────────────────────────────────
-    ws.merge_cells(f"A4:{last_col}4")
-    ws["A4"].fill      = gold_fill
+    write_banner(3,
+        f"  {BRAND_ADDRESS}   |   {BRAND_WEBSITE}   |   {BRAND_EMAIL}   |   {BRAND_PHONE}",
+        Font(color="DBEAFE", size=7, name="Calibri"),
+        blue_fill, 14)
+
+    # Gold separator — no text, just fill
+    for c in range(1, n_cols + 1):
+        ws.cell(row=4, column=c).fill = gold_fill
     ws.row_dimensions[4].height = 4
+    if n_cols > 1:
+        ws.merge_cells(f"A4:{last_col}4")
 
-    # ── Row 5: cyan accent bar ─────────────────────────────────────────────
-    ws.merge_cells(f"A5:{last_col}5")
-    ws["A5"].fill      = cyan_fill
+    # Cyan accent
+    for c in range(1, n_cols + 1):
+        ws.cell(row=5, column=c).fill = cyan_fill
     ws.row_dimensions[5].height = 2
+    if n_cols > 1:
+        ws.merge_cells(f"A5:{last_col}5")
 
-    # ── Row 6: report title + generated timestamp ──────────────────────────
-    ws.row_dimensions[6].height = 22
-    ws.merge_cells(f"A6:{last_col}6")
+    # Report title
     report_title = filename.replace("-", " ").replace("_", " ").title()
-    ws["A6"] = f"  {report_title}"
-    ws["A6"].font      = Font(color=HEX_NAVY, bold=True, size=12, name="Calibri")
-    ws["A6"].fill      = light_fill
-    ws["A6"].alignment = Alignment(horizontal="left", vertical="center")
+    write_banner(6,
+        f"  {report_title}",
+        Font(color=HEX_NAVY, bold=True, size=12, name="Calibri"),
+        light_fill, 22)
 
-    # Generated timestamp in last col (write after merge)
-    ws.row_dimensions[7].height = 14
-    ws.merge_cells(f"A7:{last_col}7")
-    # Show subtitle (e.g. registration counts) if provided, otherwise timestamp
+    # Subtitle / timestamp
     row7_text = subtitle if subtitle else f"Generated: {datetime.now().strftime('%d %B %Y at %H:%M')}"
-    ws["A7"] = f"  {row7_text}"
-    ws["A7"].font      = Font(color=HEX_MID, size=8, italic=True, name="Calibri")
-    ws["A7"].fill      = light_fill
-    ws["A7"].alignment = Alignment(horizontal="left", vertical="center")
+    write_banner(7,
+        f"  {row7_text}",
+        Font(color=HEX_MID, size=8, italic=True, name="Calibri"),
+        light_fill, 14)
 
-    # ── Row 8: spacer ──────────────────────────────────────────────────────
+    # Spacer row
     ws.row_dimensions[8].height = 6
 
-    # ── Row 9: column headers ──────────────────────────────────────────────
+    # ── Column headers (row 9) ─────────────────────────────────────────────
     HDR_ROW = 9
     ws.row_dimensions[HDR_ROW].height = 22
     for col_idx, h in enumerate(headers, 1):
@@ -174,8 +177,7 @@ def excel_response(filename, headers, rows, subtitle=""):
     # ── Data rows ──────────────────────────────────────────────────────────
     for r_idx, row in enumerate(rows):
         excel_row  = HDR_ROW + 1 + r_idx
-        is_even    = r_idx % 2 == 0
-        row_fill   = white_fill if is_even else stripe_fill
+        row_fill   = white_fill if r_idx % 2 == 0 else stripe_fill
         ws.row_dimensions[excel_row].height = 16
 
         for c_idx, val in enumerate(row, 1):
@@ -197,14 +199,14 @@ def excel_response(filename, headers, rows, subtitle=""):
         col_letter = get_column_letter(col_idx)
         max_len = len(str(headers[col_idx - 1])) + 2
         for cell in ws[col_letter]:
-            if cell.value and not getattr(cell, 'data_type', None) == 'n':
+            if cell.value:
                 try:
                     max_len = max(max_len, len(str(cell.value)))
                 except Exception:
                     pass
         ws.column_dimensions[col_letter].width = min(max_len + 3, 50)
 
-    # ── Freeze panes below header row ─────────────────────────────────────
+    # ── Freeze panes ───────────────────────────────────────────────────────
     ws.freeze_panes = ws.cell(row=HDR_ROW + 1, column=1)
 
     # ── Save ───────────────────────────────────────────────────────────────
