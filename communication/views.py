@@ -197,10 +197,25 @@ def notifications(request):
             if p in priorities_present:
                 highest = p
                 break
+
+        # Determine notification type for distinct sounds
+        # Newest unread notification drives the type; fall back to "general"
+        newest_unread = unread_qs.order_by("-timestamp").first()
+        notif_type = "general"
+        if newest_unread:
+            link = newest_unread.link or ""
+            if "/tasks/" in link:
+                notif_type = "task"
+            elif "/events/" in link:
+                notif_type = "event"
+            elif "/attendance/" in link:
+                notif_type = "location"
+
         return JsonResponse({
             "total": user_notifs.count(),
             "unread": unread_qs.count(),
             "highest_priority": highest,
+            "notification_type": notif_type,
         })
 
     if request.method == "POST":

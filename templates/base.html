@@ -303,7 +303,7 @@
 
       // ── Play sound only when NEW unread notifications arrive ──────────
       if (!firstPoll && data.unread > lastUnread && window.portalSound) {
-        window.portalSound.play(data.highest_priority || 'medium');
+        window.portalSound.play(data.highest_priority || 'medium', data.notification_type || 'general');
       }
       firstPoll  = false;
       lastUnread = data.unread;
