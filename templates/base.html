@@ -111,8 +111,14 @@
     <a href="{% url 'dashboard:home' %}"><i class="bi bi-speedometer2"></i> Dashboard</a>
     <a href="{% url 'attendance:home' %}"><i class="bi bi-geo-alt"></i> Attendance</a>
     <a href="{% url 'attendance:my_location_timeout' %}"><i class="bi bi-clock-history"></i> Location Timeout</a>
-    {% if user.can_monitor_all_attendance %}
+
+    {# ── Missed Checkout: Admin, PM, Dept Head ── #}
+    {% if user.can_monitor_attendance %}
     <a href="{% url 'attendance:missed_checkout' %}"><i class="bi bi-door-open"></i> Missed Checkout</a>
+    {% endif %}
+
+    {# ── Location Activity + badge: Admin and PM only ── #}
+    {% if user.can_monitor_all_attendance %}
     <a href="{% url 'attendance:location_activity' %}"
        style="padding-left:2.2rem;font-size:.85rem;opacity:.9"
        id="sidebar-loc-activity">
@@ -123,21 +129,31 @@
     </a>
     {% endif %}
 
-    {% if user.is_portal_admin %}
+    {# ── Project Sites: Admin only ── #}
+    {% if user.can_manage_project_sites %}
     <a href="{% url 'attendance:sites' %}"><i class="bi bi-pin-map"></i> Project Sites</a>
     {% endif %}
+
+    {# ── Geofence Violations: Admin and PM ── #}
     {% if user.can_view_geofence_violations %}
     <a href="{% url 'attendance:geofence_violations' %}"><i class="bi bi-exclamation-triangle"></i> Violations</a>
     {% endif %}
-    {% if user.is_portal_admin %}
-    <a href="{% url 'accounts:user_directory' %}"><i class="bi bi-people"></i> User Directory</a>
-    <a href="{% url 'accounts:departments' %}"><i class="bi bi-building"></i> Departments</a>
-    {% elif user.can_view_users %}
+
+    {# ── User Directory: Admin (full) and PM (read-only) ── #}
+    {% if user.can_view_users %}
     <a href="{% url 'accounts:user_directory' %}"><i class="bi bi-people"></i> User Directory</a>
     {% endif %}
 
+    {# ── Departments: Admin only ── #}
+    {% if user.can_manage_departments %}
+    <a href="{% url 'accounts:departments' %}"><i class="bi bi-building"></i> Departments</a>
+    {% endif %}
+
+    {# ── Tasks ── #}
     <a href="{% url 'tasks:list' %}"><i class="bi bi-check2-square"></i> Tasks</a>
     <a href="{% url 'dashboard:reminders' %}"><i class="bi bi-calendar-check"></i> Reminders</a>
+
+    {# ── Events ── #}
     <a href="{% url 'events:list' %}"><i class="bi bi-calendar-event"></i> Events</a>
     {% if user.can_manage_events %}
     <a href="{% url 'events:all_no_shows' %}" style="padding-left:2.2rem;font-size:.85rem;opacity:.9">
@@ -147,9 +163,14 @@
       <i class="bi bi-person-slash"></i> Not Registered
     </a>
     {% endif %}
+
+    {# ── Communication ── #}
     <a href="{% url 'communication:home' %}"><i class="bi bi-chat-dots"></i> Communication</a>
+
+    {# ── Suggestions ── #}
     <a href="{% url 'suggestions:list' %}"><i class="bi bi-lightbulb"></i> Suggestions</a>
 
+    {# ── Reports: Admin and PM only ── #}
     {% if user.can_view_reports %}
     <div style="border-top:1px solid rgba(255,255,255,.12);margin:10px 0 8px"></div>
     <a href="{% url 'dashboard:reports' %}"><i class="bi bi-file-earmark-bar-graph"></i> Reports</a>

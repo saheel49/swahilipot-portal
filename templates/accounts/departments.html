@@ -222,7 +222,7 @@
 .dept-icon{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#0F4C81,#1E88E5);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
 .dept-info{flex:1}
 .dept-name{font-weight:800;font-size:1rem;color:var(--ink,#111827)}
-.dept-desc{font-size:.8rem;color:var(--muted,#6b7280)}
+.dept-desc{font-size:.8rem;color:#6b7280}
 .dept-actions{display:flex;align-items:center;gap:8px}
 .dept-count-badge{font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:20px;background:#dbeafe;color:#1d4ed8}
 .btn-xs{font-size:.72rem;padding:4px 10px;border-radius:6px;line-height:1}
@@ -278,7 +278,19 @@
 .task-panel{background:var(--surface,#fff);border:1.5px solid var(--border,#e5e7eb);border-radius:10px;padding:14px}
 
 /* ── Dark mode overrides for department page ───────────────────────── */
+html[data-theme="dark"] .dept-card{background:var(--surface);border-color:var(--border)}
+html[data-theme="dark"] .dept-hdr{background:var(--surface2);border-color:var(--border)}
+html[data-theme="dark"] .dept-name{color:#e5e7eb}
+html[data-theme="dark"] .dept-desc{color:#9ca3af}
+html[data-theme="dark"] .dept-members{background:var(--surface)}
+html[data-theme="dark"] .dept-assign-section{background:var(--surface);border-color:var(--border)}
+html[data-theme="dark"] .dept-task-section{background:var(--surface2);border-color:var(--border)}
+html[data-theme="dark"] .dept-section-label{color:#9ca3af}
 html[data-theme="dark"] .dept-count-badge{background:rgba(59,130,246,.2);color:#93c5fd}
+
+/* Member chips */
+html[data-theme="dark"] .dept-member-chip{background:var(--surface2);border-color:var(--border)}
+html[data-theme="dark"] .chip-name{color:#e5e7eb}
 html[data-theme="dark"] .chip-role-danger{background:rgba(239,68,68,.2);color:#fca5a5}
 html[data-theme="dark"] .chip-role-primary{background:rgba(59,130,246,.2);color:#93c5fd}
 html[data-theme="dark"] .chip-role-purple{background:rgba(139,92,246,.2);color:#c4b5fd}
@@ -288,8 +300,25 @@ html[data-theme="dark"] .chip-remove{color:var(--muted)}
 html[data-theme="dark"] .chip-remove:hover{background:rgba(239,68,68,.25);color:#fca5a5}
 html[data-theme="dark"] .chip-loc-btn{color:#60a5fa}
 html[data-theme="dark"] .chip-loc-btn:hover{background:rgba(96,165,250,.15);color:#93c5fd}
+
+/* Assign scroll */
+html[data-theme="dark"] .assign-scroll{background:var(--surface2);border-color:var(--border)}
+html[data-theme="dark"] .assign-option{color:#e5e7eb}
+html[data-theme="dark"] .assign-option:hover{background:rgba(59,130,246,.1)}
+html[data-theme="dark"] .assign-name{color:#e5e7eb}
+html[data-theme="dark"] .assign-role{color:#9ca3af}
+
+/* Task tabs and panels */
+html[data-theme="dark"] .task-tab{background:var(--surface2);border-color:var(--border);color:#9ca3af}
 html[data-theme="dark"] .task-tab.active{background:#1e3a5f;border-color:#3b82f6;color:#93c5fd}
 html[data-theme="dark"] .task-tab:hover:not(.active){background:rgba(59,130,246,.1);border-color:#3b82f6;color:#60a5fa}
+html[data-theme="dark"] .task-panel{background:var(--surface2);border-color:var(--border)}
+html[data-theme="dark"] .task-panel p{color:#9ca3af}
+html[data-theme="dark"] .task-panel strong{color:#e5e7eb}
+html[data-theme="dark"] .task-panel .form-control,
+html[data-theme="dark"] .task-panel .form-select{background:var(--surface);border-color:var(--border);color:#e5e7eb}
+html[data-theme="dark"] .task-panel .form-control::placeholder{color:#6b7280}
+html[data-theme="dark"] .task-panel textarea.form-control::placeholder{color:#6b7280}
 </style>
 
 <script>
