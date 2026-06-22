@@ -1044,7 +1044,7 @@ def acknowledge_violation(request, pk):
 
 
 @role_required("admin")
-def admin_resolve_location_log(request, log_pk):
+def admin_resolve_location_log(request, user_pk, log_pk):
     """
     Admin-only: manually resolve a 'still off' LocationLog entry.
     Used when a user's location shows as unresolved but they have turned it back on
@@ -1052,17 +1052,31 @@ def admin_resolve_location_log(request, log_pk):
     Sets turned_on_at to now and calculates duration.
     """
     from .models import LocationLog
-    log = get_object_or_404(LocationLog, pk=log_pk, turned_on_at__isnull=True)
+    from accounts.models import User as PortalUser
+
+    # Verify the user exists
+    target = get_object_or_404(PortalUser, pk=user_pk)
+
     if request.method == "POST":
-        log.close()
-        messages.success(
-            request,
-            f"Location log #{log_pk} resolved — duration was {log.duration_display}."
-        )
-        # Redirect back to the user's location log page
-        return redirect("attendance:location_log", user_pk=log.user_id)
-    # If accessed via GET, just redirect (should be POST only)
-    return redirect("attendance:location_log", user_pk=log.user_id)
+        # Fetch log — allow already-resolved ones gracefully
+        try:
+            log = LocationLog.objects.get(pk=log_pk, user=target)
+        except LocationLog.DoesNotExist:
+            messages.error(request, f"Location log #{log_pk} not found for this user.")
+            return redirect("attendance:location_log", user_pk=user_pk)
+
+        if log.turned_on_at is not None:
+            messages.info(request, f"Location log #{log_pk} was already resolved.")
+        else:
+            log.close()
+            messages.success(
+                request,
+                f"Location log #{log_pk} resolved — duration was {log.duration_display}."
+            )
+        return redirect("attendance:location_log", user_pk=user_pk)
+
+    # GET — just redirect back (should always be POST from the form)
+    return redirect("attendance:location_log", user_pk=user_pk)
 
 
 
